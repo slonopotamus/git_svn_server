@@ -19,8 +19,8 @@ def handle_command(msg):
     args = msg [1]
 
     if command not in commands:
-        return gen.failure(gen.list('12',
-                                    gen.string('unknown command: %s' % command),
+        return gen.failure(gen.list('210001',
+                                    gen.string("Unknown command '%s'" % command),
                                     gen.string('commands.py'), '0'))
 
     return commands[command](args)
