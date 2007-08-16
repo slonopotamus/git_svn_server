@@ -9,9 +9,9 @@ class ConfigError(Exception):
 
 class Repos:
     location = ''
-    trunk = ''
-    branches = ''
-    tags = ''
+    trunk = 'trunk'
+    branches = 'branches/$(branch)'
+    tags = 'tags/$(tag)'
 
     def __str__(self):
         s = ""
