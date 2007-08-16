@@ -7,6 +7,9 @@ import auth
 import commands
 import generate as gen
 import parse
+from repos import find_repos
+
+repos = None
 
 def greeting():
     return gen.success('2', '2', '( ANONYMOUS )', '( edit-pipeline )')
@@ -25,6 +28,8 @@ def setup(f):
 
 @setup
 def handle_client_greeting(msg):
+    global repos
+
     proto_ver = int(msg[0])
     client_caps = msg[1]
     url = parse.string(msg[2])
@@ -32,6 +37,14 @@ def handle_client_greeting(msg):
     print "ver: %d" % proto_ver
     print "caps: %s" % client_caps
     print "url: %s" % url
+
+    repos = find_repos(url)
+
+    if repos is None:
+        return gen.failure(gen.list('210005',
+                                    gen.string("No repository found in '%s'" %
+                                    url),
+                                    gen.string('message.py'), '0'))
 
     return auth_request()
 
