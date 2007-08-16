@@ -14,3 +14,5 @@ def success(*args):
 def failure(*args):
     return tuple('failure', *args)
 
+def error(errno, errstr):
+    return failure(list(str(errno), string(errstr), string('...'), '0'))
