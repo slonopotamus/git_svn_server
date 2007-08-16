@@ -10,6 +10,7 @@ import parse
 from repos import find_repos
 
 repos = None
+current_url = ''
 
 def greeting():
     return gen.success('2', '2', '( ANONYMOUS )', '( edit-pipeline )')
@@ -28,7 +29,7 @@ def setup(f):
 
 @setup
 def handle_client_greeting(msg):
-    global repos
+    global repos, current_url
 
     proto_ver = int(msg[0])
     client_caps = msg[1]
@@ -39,6 +40,7 @@ def handle_client_greeting(msg):
     print "url: %s" % url
 
     repos = find_repos(url)
+    current_url = url
 
     if repos is None:
         return gen.failure(gen.list('210005',
@@ -66,4 +68,4 @@ def handle_msg(msg_str):
 
     print "%d:%s" % (os.getpid(), msg)
 
-    return commands.handle_command(msg)
+    return commands.handle_command(current_url, msg, repos)
