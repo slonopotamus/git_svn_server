@@ -5,6 +5,7 @@ from SocketServer import *
 import sys
 
 import auth
+from config import config
 import message as msg
 
 class EOF(Exception):
@@ -65,6 +66,8 @@ class SvnRequestHandler(StreamRequestHandler):
         sys.stderr.write('%d: -- CLOSE CONNECTION --\n' % os.getpid())
 
 def main():
+    config.load('test.cfg')
+
     server = SvnServer(('0.0.0.0', 3690), SvnRequestHandler)
 
     server.serve_forever()
