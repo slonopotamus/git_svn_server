@@ -75,12 +75,16 @@ class Repos:
     def map_rev(self, ref, rev):
         return ref
 
-    def get_path_info(self, url, rev=None):
+    def get_path_info(self, url, rev=None, recurse=False):
         ref, path = self.parse_url(url)
         
         commit = self.map_rev(ref, rev)
 
-        cmd = 'ls-tree %s "%s"' % (commit, path)
+        opts = ''
+        if recurse:
+            opts += '-r -t'
+
+        cmd = 'ls-tree %s %s "%s"' % (opts, commit, path)
 
         data = self.get_git_data(cmd)
 
