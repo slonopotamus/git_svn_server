@@ -90,3 +90,6 @@ def string(str):
         return None
 
     return data
+
+def bool(str):
+    return str.lower() == 'true'
