@@ -33,7 +33,7 @@ def check_path(url_base, repos, args):
     print "path: %s" % path
     print "rev: %s" % rev
 
-    if path == '':
+    if ref is None or path == '':
         type = 'dir'
     else:
         type = repos.svn_node_kind(url, rev)

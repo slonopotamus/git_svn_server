@@ -46,9 +46,12 @@ class Repos:
         return data
 
     def parse_url(self, url):
+        if url == self.base_url:
+            return (None, '')
+
         trunk_m = self.trunk_re.search(url)
         branch_m = self.branch_re.search(url)
-        tag_m = self.branch_re.search(url)
+        tag_m = self.tag_re.search(url)
 
         if trunk_m:
             path = trunk_m.group('path')
@@ -63,6 +66,9 @@ class Repos:
             ref = 'refs/tags/%s' % tag
         else:
             raise foo
+
+        if path == None:
+            path = ''
 
         return (ref, path)
 
