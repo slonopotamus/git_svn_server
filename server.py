@@ -70,7 +70,10 @@ def main():
 
     server = SvnServer(('0.0.0.0', 3690), SvnRequestHandler)
 
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
 if __name__ == "__main__":
     main()

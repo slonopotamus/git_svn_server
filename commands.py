@@ -12,8 +12,9 @@ def cmd_func(name):
 
 @cmd_func('get-latest-rev')
 def get_latest_rev(url, repos, args):
-    return "%s %s" % (gen.success('( )', gen.string('')),
-                      gen.success('12'))
+    latest_rev = repos.get_latest_rev()
+
+    return gen.cmd_success(latest_rev)
 
 @cmd_func('check-path')
 def check_path(url_base, repos, args):
@@ -38,8 +39,36 @@ def check_path(url_base, repos, args):
     else:
         type = repos.svn_node_kind(url, rev)
 
-    return "%s %s" % (gen.success('( )', gen.string('')),
-                      gen.success(type))
+    return gen.cmd_success(type)
+
+@cmd_func('stat')
+def stat(url_base, repos, args):
+    url = url_base
+    rev = None
+
+    path = parse.string(args[0])
+    if len(path) > 0:
+        url = '/'.join((url_base, path))
+
+    if len(args) > 1:
+        rev = int(args[1][0])
+
+    ref, path = repos.parse_url(url)
+
+    print "ref: %s" % ref
+    print "path: %s" % path
+    print "rev: %s" % rev
+
+    path, kind, size, changed, by, at = repos.stat(url, rev)
+
+    ls_data = gen.list(kind,
+                       size,
+                       'false', # has-props
+                       changed,
+                       gen.list(gen.string(at)),
+                       gen.list(gen.string(by)))
+
+    return gen.cmd_success(gen.list(ls_data))
 
 @cmd_func('get-dir')
 def get_dir(url_base, repos, args):
@@ -72,7 +101,20 @@ def get_dir(url_base, repos, args):
     print "want_contents: %s" % want_contents
     print "fields: %s" % fields
 
-    return gen.error(12, 'pah')
+    ls_data = []
+
+    for path, kind, size, changed, by, at in repos.ls(url, rev):
+        ls_data.append(gen.list(gen.string(path),
+                                kind,
+                                size,
+                                'false', # has-props
+                                changed,
+                                gen.list(gen.string(at)),
+                                gen.list(gen.string(by))))
+
+    response = "%d ( ) %s" % (rev, gen.list(*ls_data))
+
+    return gen.cmd_success(response)
 
 def handle_command(url, msg, repos):
     command = msg[0]
