@@ -12,43 +12,32 @@ class AuthFailure(Exception):
     pass
 
 class AuthMethod:
-    def __init__(self, inf, outf):
-        self.rfile = inf
-        self.wfile = outf
+    def __init__(self, link):
+        self.link = link
 
     def get_response(self):
-        ch = self.rfile.read(1)
+        return self.link.read_str()
 
-        if len(ch) == 0:
-            raise EOF
-
-        l = ""
-        while ch not in [':', '']:
-            l += ch
-            ch = self.rfile.read(1)
-
-        bytes = int(l)
-        print "want %d bytes" % bytes
-        data = self.rfile.read(bytes)
-
-        return data
-
-    def do_auth(self, next):
+    def do_auth(self):
         while True:
             try:
                 self.perform_auth()
                 break
             except AuthFailure, fail:
-                self.wfile.write('%s\n' % gen.failure(*fail.args))
+                self.link.send_msg(gen.failure(*fail.args))
+                return False
 
-        self.wfile.write('%s\n' % gen.success())
+        self.link.send_msg(gen.success())
 
-        return next()
+        return True
+
+    def reauth(self):
+        self.link.send_msg(success('( )', string('')))
 
 class CramMd5Auth(AuthMethod):
     def perform_auth(self):
         msg_id = make_msgid()
-        self.wfile.write('%s\n' % gen.tuple('step', gen.string(msg_id)))
+        self.link.send_msg(gen.tuple('step', gen.string(msg_id)))
 
         resp = self.get_response()
         print resp
@@ -60,3 +49,23 @@ class CramMd5Auth(AuthMethod):
 auths = {
     'CRAM-MD5' : CramMd5Auth,
 }
+
+def auth(link):
+    auth_list = auths.keys()
+    link.send_msg(gen.success(gen.list(*auth_list), gen.string('test')))
+
+    msg = link.read_msg()
+
+    auth_type = parse.msg(msg)[0]
+
+    if auth_type not in auths:
+        link.send_msg(gen.failure(gen.string('unknown auth type: %s' \
+                                             % auth_type)))
+        return None
+
+    auth = auths[auth_type](link)
+
+    if not auth.do_auth():
+        return None
+
+    return auth

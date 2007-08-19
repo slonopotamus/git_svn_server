@@ -20,6 +20,7 @@ verbose_mode = False
 class Repos:
     def __init__(self, host, base):
         self.repos_base = base
+        self.uuid = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
         self.base_url = 'svn://%s/%s' % (host, base)
         self.repos = config.repos[base]
         self.trunk_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' % \
@@ -30,6 +31,10 @@ class Repos:
         tags = self.repos.tags.replace('$(tag)', '(?P<tag>[^/]+)')
         self.tag_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' % \
                                  (self.base_url, tags))
+
+    def send_server_id(self, link):
+        link.send_msg(gen.success(gen.string(self.uuid),
+                                  gen.string(self.base_url)))
 
     def get_git_data(self, command_string):
         git_command = "%s %s" % (git_binary, command_string)

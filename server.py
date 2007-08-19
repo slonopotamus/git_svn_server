@@ -5,20 +5,36 @@ from SocketServer import *
 import sys
 
 import auth
+import client
+import command
+import editor
+import report
+
+import generate as gen
 from config import config
-import message as msg
-
-class EOF(Exception):
-    pass
-
-class ReadError(Exception):
-    pass
+from errors import *
 
 class SvnServer(ForkingTCPServer):
     allow_reuse_address = True
     pass
 
 class SvnRequestHandler(StreamRequestHandler):
+    def __init__(self, request, client_address, server):
+        self.mode = 'connect'
+        self.client_caps = None
+        self.repos = None
+        self.auth = None
+        self.data = None
+        self.url = None
+        StreamRequestHandler.__init__(self, request, client_address, server)
+
+    def set_mode(self, mode):
+        if mode not in ['connect', 'auth', 'announce',
+                        'command', 'editor', 'report']:
+            raise ModeError("Unknown mode '%s'" % mode)
+
+        self.mode = mode
+
     def read_msg(self):
         t = self.rfile.read(1)
 
@@ -47,20 +63,101 @@ class SvnRequestHandler(StreamRequestHandler):
         sys.stderr.write('%d<%s\n' % (os.getpid(), t))
         return t
 
+    def read(self, count):
+        data = ''
+
+        while len(data) < count:
+            s = self.rfile.read(count - len(data))
+
+            if len(s) == 0:
+                raise EOF
+
+            data += s
+
+        sys.stderr.write('%d<%s\n' % (os.getpid(), data))
+        return data
+
+    def read_str(self):
+        ch = self.rfile.read(1)
+
+        if len(ch) == 0:
+            raise EOF
+
+        l = ""
+        while ch not in [':', '']:
+            l += ch
+            ch = self.rfile.read(1)
+
+        bytes = int(l)
+        data = ''
+
+        while len(data) < bytes:
+            s = self.rfile.read(bytes - len(data))
+
+            if len(s) == 0:
+                raise EOF
+
+            data += s
+
+        sys.stderr.write('%d<%s\n' % (os.getpid(), data))
+        return data
+
+    def send(self, msg):
+        sys.stderr.write('%d>%s\n' % (os.getpid(), msg))
+        self.wfile.write('%s' % msg)
+        self.wfile.flush()
+
+    def send_msg(self, msg):
+        self.send('%s\n' % msg)
+
+    def send_server_id(self):
+        self.send_msg(gen.success(gen.string(self.repos.uuid),
+                                  gen.string(self.repos.base_url)))
+
     def handle(self):
         sys.stderr.write('%d: -- NEW CONNECTION --\n' % os.getpid())
         try:
-            resp = msg.greeting()
-            while resp != None:
-                sys.stderr.write('%d>%s\n' % (os.getpid(), resp))
-                self.wfile.write('%s\n' % resp)
+            while True:
                 try:
-                    resp = msg.handle_msg(self.read_msg())
-                except auth.Needed, nauth:
-                    auth_type = nauth.args[0]
-                    next_resp_fn = nauth.args[1]
-                    auth_engine = auth.auths[auth_type](self.rfile, self.wfile)
-                    resp = auth_engine.do_auth(next_resp_fn)
+                    if self.mode == 'connect':
+                        self.url, self.client_caps, self.repos = \
+                                  client.connect(self)
+
+                        if self.client_caps is None or self.repos is None:
+                            return
+
+                        self.mode = 'auth'
+
+                    elif self.mode == 'auth':
+                        if self.auth is None:
+                            self.auth = auth.auth(self)
+                            self.mode = 'announce'
+                        else:
+                            self.auth.reauth()
+                            self.mode = self.data
+
+                        if self.auth is None:
+                            return
+
+                    elif self.mode == 'announce':
+                        self.send_server_id()
+                        self.mode = 'command'
+
+                    elif self.mode == 'command':
+                        command.process(self)
+
+                    elif self.mode == 'editor':
+                        editor.process(self)
+
+                    elif self.mode == 'report':
+                        report.process(self)
+
+                    else:
+                        raise ModeError("unknown mode '%s'" % self.mode)
+
+                except ChangeMode, cm:
+                    self.mode = cm.args[0]
+                    self.data = cm.args[1]
         except EOF:
             pass
         sys.stderr.write('%d: -- CLOSE CONNECTION --\n' % os.getpid())

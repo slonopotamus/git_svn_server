@@ -124,3 +124,11 @@ def handle_command(url, msg, repos):
         return gen.error(210001, "Unknown command '%s'" % command)
 
     return commands[command](url, repos, args)
+
+def process(link):
+    while True:
+        msg = parse.msg(link.read_msg())
+        resp = handle_command(link.url, msg, link.repos)
+        if resp == None:
+            break
+        link.send_msg(resp)
