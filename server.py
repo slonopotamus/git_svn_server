@@ -26,6 +26,7 @@ class SvnRequestHandler(StreamRequestHandler):
         self.auth = None
         self.data = None
         self.url = None
+        self.command = None
         StreamRequestHandler.__init__(self, request, client_address, server)
 
     def set_mode(self, mode):
@@ -144,7 +145,10 @@ class SvnRequestHandler(StreamRequestHandler):
                         self.mode = 'command'
 
                     elif self.mode == 'command':
-                        command.process(self)
+                        if self.command is None:
+                            self.command = command.process(self)
+                        else:
+                            self.command = self.command.process()
 
                     elif self.mode == 'editor':
                         editor.process(self)
