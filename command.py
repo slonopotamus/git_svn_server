@@ -126,9 +126,9 @@ def handle_command(url, msg, repos):
     return commands[command](url, repos, args)
 
 def process(link):
-    while True:
-        msg = parse.msg(link.read_msg())
-        resp = handle_command(link.url, msg, link.repos)
-        if resp == None:
-            break
+    msg = parse.msg(link.read_msg())
+
+    resp = handle_command(link.url, msg, link.repos)
+
+    if resp != None:
         link.send_msg(resp)
