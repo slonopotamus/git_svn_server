@@ -32,7 +32,7 @@ class AuthMethod:
         return True
 
     def reauth(self):
-        self.link.send_msg(success('( )', string('')))
+        self.link.send_msg(gen.success(gen.list(), gen.string('')))
 
 class CramMd5Auth(AuthMethod):
     def perform_auth(self):
