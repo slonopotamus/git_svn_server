@@ -161,7 +161,8 @@ class SvnRequestHandler(StreamRequestHandler):
 
                 except ChangeMode, cm:
                     self.mode = cm.args[0]
-                    self.data = cm.args[1]
+                    if len(cm.args) > 1:
+                        self.data = cm.args[1]
         except EOF:
             pass
         sys.stderr.write('%d: -- CLOSE CONNECTION --\n' % os.getpid())

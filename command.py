@@ -4,6 +4,20 @@ import parse
 
 from cmd_base import *
 
+def process(link):
+    msg = parse.msg(link.read_msg())
+
+    command = msg[0]
+    args = msg [1]
+
+    if command not in commands:
+        link.send_msg(gen.error(210001, "Unknown command '%s'" % command))
+        return None
+
+    print "found %s %s" % (command, commands[command](link, args))
+
+    return commands[command](link, args)
+
 class LatestRev(SimpleCommand):
     _cmd = 'get-latest-rev'
 
@@ -126,16 +140,32 @@ class GetDir(SimpleCommand):
 
         self.link.send_msg(gen.success(response))
 
-def process(link):
-    msg = parse.msg(link.read_msg())
+class Update(Command):
+    _cmd = 'update'
 
-    command = msg[0]
-    args = msg [1]
+    def report_set_path(self, path, rev, start_empty, lock_token, depth):
+        print "report: set path"
 
-    if command not in commands:
-        link.send_msg(gen.error(210001, "Unknown command '%s'" % command))
-        return None
+    def report_link_path(self, path, url, rev, start_empty, lock_token, depth):
+        print "report: link path"
 
-    print "found %s %s" % (command, commands[command](link, args))
+    def report_delete_path(self, path):
+        print "report: delete path"
 
-    return commands[command](link, args)
+    @cmd_step
+    def auth(self):
+        raise ChangeMode('auth', 'command')
+
+    @cmd_step
+    def get_reports(self):
+        raise ChangeMode('report')
+
+    @cmd_step
+    def send_update(self):
+        print "ought to be doing the edit bits here ..."
+        self.link.send_msg(gen.tuple('close-edit'))
+        msg = parse.msg(self.link.read_msg())
+        if msg[0] != 'success':
+            self.link.send_msg(gen.error(1, 'client barfed'))
+        else:
+            self.link.send_msg(gen.success())

@@ -39,6 +39,7 @@ class Command:
         self.next_step = 0
         self.link = link
         self.args = args
+        self.report_errors = []
 
     def process(self):
         if self.next_step >= len(self.steps):
@@ -50,6 +51,24 @@ class Command:
         self.steps[next_step](self)
 
         return self
+
+    def report_set_path(self, path, rev, start_empty, lock_token, depth):
+        raise NotImplementedError()
+
+    def report_link_path(self, path, url, rev, start_empty, lock_token, depth):
+        raise NotImplementedError()
+
+    def report_delete_path(self, path):
+        raise NotImplementedError()
+
+    def report_finish(self):
+        raise ChangeMode('auth', 'command')
+
+    def report_abort(self):
+        raise NotImplementedError()
+
+    def log_report_error(self, errno, errstr):
+        self.report_errors.append((errno, errstr))
 
 class SimpleCommand(Command):
     def auth(self):
