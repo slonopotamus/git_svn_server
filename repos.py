@@ -1,9 +1,11 @@
 
+import md5
 import os
 import re
 import sys
 import time
 
+import svndiff
 from config import config
 
 commit_tree_re = re.compile(r'tree (?P<sha>[0-9a-fA-F]{40,40})')
@@ -48,6 +50,27 @@ class Repos:
         (git_in, git_data, git_err) = os.popen3(git_command)
 
         data = [line.strip('\n') for line in git_data]
+
+        git_in.close()
+        git_data.close()
+        git_err.close()
+
+        os.chdir(cwd)
+
+        return data
+
+    def get_raw_git_data(self, command_string):
+        git_command = "%s %s" % (git_binary, command_string)
+
+        if verbose_mode:
+            print "  >> %s" % (git_command)
+
+        cwd = os.getcwd()
+        os.chdir(self.repos.location)
+
+        (git_in, git_data, git_err) = os.popen3(git_command)
+
+        data = git_data.read()
 
         git_in.close()
         git_data.close()
@@ -227,6 +250,70 @@ class Repos:
                             last_changed, last_changed_by, last_changed_at))
 
         return ls_data
+
+    def get_update(self, url, rev, previous_url=None, previous_rev=None):
+        pdata = []
+        if previous_url is not None and previous_rev is not None:
+            pref, ppath = self.parse_url(previous_url)
+            pcommit = self.map_rev(pref, previous_rev)
+
+            cmd = 'ls-tree -l -r -t %s "%s"' % (pcommit, ppath)
+            pdata = self.get_git_data(cmd)
+
+        ref, path = self.parse_url(url)
+        commit = self.map_rev(ref, rev)
+
+        cmd = 'ls-tree -l -r -t %s "%s"' % (commit, path)
+        data = self.get_git_data(cmd)
+
+        prev = {}
+        for line in pdata:
+            mode, type, sha, size, name = line.split()
+            if type == 'tree':
+                name += '/'
+            prev[name] = (mode, type, sha, size)
+
+        added = []
+        modified = []
+        deleted = []
+
+        now = {}
+        for line in data:
+            mode, type, sha, size, name = line.split()
+            if type == 'tree':
+                name += '/'
+            now[name] = (mode, type, sha, size)
+
+            if name not in prev:
+                added.append(name)
+                continue
+
+            pmode, ptype, psha, psize = prev[name]
+
+            if pmode != mode or \
+                   ptype != type or \
+                   psha != sha or \
+                   psize != size:
+                modified.append(name)
+
+        for name in prev:
+            if name not in now:
+                deleted.append(name)
+
+        for name in sorted(added + modified + deleted):
+            mode, type, sha, size = now[name]
+
+            if name in added and type == 'blob':
+                cmd = 'cat-file blob %s' % sha
+                data = self.get_raw_git_data(cmd)
+                diff = svndiff.encode_new_file(data)
+                csum = md5.new(data).hexdigest()
+                props = {}
+                props['svn:entry:uuid'] = self.uuid
+                yield name, self.kind_map(type), sha, props, diff, csum
+                continue
+
+            yield name, self.kind_map(type), sha, {}, [''], ''
 
     def get_commit_info(self, commit):
         data = self.get_git_data('cat-file commit %s' % commit)
