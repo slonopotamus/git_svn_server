@@ -101,7 +101,7 @@ class GetDir(SimpleCommand):
 
         path = parse.string(args.pop(0))
         if len(path) > 0:
-            url = '/'.join((url_base, path))
+            url = '/'.join((url, path))
 
         arg = args.pop(0)
         if isinstance(arg, list):
