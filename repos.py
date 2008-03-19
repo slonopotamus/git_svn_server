@@ -33,6 +33,8 @@ class Repos:
         tags = self.repos.tags.replace('$(tag)', '(?P<tag>[^/]+)')
         self.tag_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' % \
                                  (self.base_url, tags))
+        self.other_re = re.compile(r'^%s(/(?P<path>.*))?$' % \
+                                   (self.base_url))
 
     def send_server_id(self, link):
         link.send_msg(gen.success(gen.string(self.uuid),
@@ -87,6 +89,7 @@ class Repos:
         trunk_m = self.trunk_re.search(url)
         branch_m = self.branch_re.search(url)
         tag_m = self.tag_re.search(url)
+        other_m = self.other_re.search(url)
 
         if trunk_m:
             path = trunk_m.group('path')
@@ -99,6 +102,9 @@ class Repos:
             tag = tag_m.group('tag')
             path = tag_m.group('path')
             ref = 'refs/tags/%s' % tag
+        elif other_m:
+            path = other_m.group('path')
+            ref = None
         else:
             raise foo
 
@@ -166,8 +172,27 @@ class Repos:
 
         return mode, type, sha
 
+    def stat_pseudo_path(self, path, rev=None):
+
+        if self.repos.trunk.startswith(path):
+            pass
+
+        if self.repos.branches.startswith(path):
+            pass
+
+        if self.repos.tags.startswith(path):
+            pass
+
+        raise foo
+
+        return (fname, kind, int(size),
+                last_changed, last_changed_by, last_changed_at)
+
     def stat(self, url, rev=None):
         ref, path = self.parse_url(url)
+
+        if ref is None:
+            return self.stat_pseudo_path(path, rev)
 
         commit = self.map_rev(ref, rev)
 
