@@ -171,17 +171,31 @@ class Repos:
 
         commit = self.map_rev(ref, rev)
 
-        cmd = 'ls-tree -l %s "%s"' % (commit, path)
+        if path == '':
+            cmd = 'rev-parse %s^{tree}' % (commit)
 
-        data = self.get_git_data(cmd)
+            data = self.get_git_data(cmd)
 
-        if len(data) > 1:
-            raise foo
+            if len(data) > 1:
+                raise foo
 
-        mode, type, sha, size, name = data[0].split()
-        name_bits = name.split('/')
+            type = 'tree'
+            sha = data[0]
+            name = ''
+            fname = ''
 
-        fname = name_bits[-1]
+        else:
+            cmd = 'ls-tree -l %s "%s"' % (commit, path)
+
+            data = self.get_git_data(cmd)
+
+            if len(data) > 1:
+                raise foo
+
+            mode, type, sha, size, name = data[0].split()
+            name_bits = name.split('/')
+
+            fname = name_bits[-1]
 
         if type == 'tree':
             size = 0
