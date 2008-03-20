@@ -290,6 +290,43 @@ class Repos:
 
         return ls_data
 
+    def log(self, url, paths, start_rev, end_rev, limit=0):
+        ref, path = self.parse_url(url)
+
+        if start_rev <= end_rev:
+            low_rev = start_rev
+            high_rev = end_rev + 1
+        else:
+            low_rev = end_rev
+            high_rev = start_rev + 1
+
+        log_entries = []
+
+        print paths
+
+        for rev in range(low_rev, high_rev):
+            commit = self.map_rev(ref, rev)
+            rev = self.map_ref(commit)
+
+            changes = []
+
+            changed_files = self.get_changed_files(commit)
+            for p, c in changed_files.items():
+                for tp in paths:
+                    if p.startswith(tp):
+                        changes.append((p, c))
+
+            if len(changes) == 0:
+                continue
+
+            t, p, n, email, at, msg = self.get_commit_info(commit)
+            log_entries.append((changes, rev, email, at, msg, False, []))
+
+        if start_rev > end_rev:
+            log_entries.reverse()
+
+        return log_entries
+
     def get_update(self, url, rev, previous_url=None, previous_rev=None):
         pdata = []
         if previous_url is not None and previous_rev is not None:
@@ -353,6 +390,21 @@ class Repos:
                 continue
 
             yield name, self.kind_map(type), sha, {}, [''], ''
+
+    def get_changed_files(self, commit):
+        data = self.get_git_data('show --pretty=oneline --name-status %s' %
+                                 commit)
+
+        changed_files = {}
+
+        for line in data[1:]:
+            if line.strip() == '':
+                continue
+            print line
+            change, path = line.split('\t', 1)
+            changed_files[path] = change
+
+        return changed_files
 
     def get_commit_info(self, commit):
         data = self.get_git_data('cat-file commit %s' % commit)
