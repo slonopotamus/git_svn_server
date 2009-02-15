@@ -5,8 +5,6 @@ from repos import find_repos
 from errors import *
 
 def parse_client_greeting(msg_str):
-    global repos, current_url
-
     msg = parse.msg(msg_str)
 
     proto_ver = int(msg[0])
