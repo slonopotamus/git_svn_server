@@ -3,7 +3,10 @@ import imp as _imp
 import os as _os
 
 for _fname in _os.listdir(_os.path.dirname(__file__)):
-    if _fname.endswith('.py') and not _fname == '__init__.py':
+    if _fname.startswith('.') or _fname == '__init__.py':
+        continue
+
+    if _fname.endswith('.py'):
         _name = _fname[:-3]
         _cname = _name.title()
         _path = _os.path.join(_os.path.dirname(__file__), _fname)
