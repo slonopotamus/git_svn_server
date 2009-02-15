@@ -44,11 +44,11 @@ class CheckPath(SimpleCommand):
         if len(args) > 1:
             rev = int(args[1][0])
 
-        ref, path = repos.parse_url(url)
+##        ref, path = repos.parse_url(url)
 
-        print "ref: %s" % ref
-        print "path: %s" % path
-        print "rev: %s" % rev
+##        print "ref: %s" % ref
+##        print "path: %s" % path
+##        print "rev: %s" % rev
 
         if ref is None or path == '':
             type = 'dir'
@@ -73,11 +73,11 @@ class Stat(SimpleCommand):
         if len(args) > 1:
             rev = int(args[1][0])
 
-        ref, path = repos.parse_url(url)
+##        ref, path = repos.parse_url(url)
 
-        print "ref: %s" % ref
-        print "path: %s" % path
-        print "rev: %s" % rev
+##        print "ref: %s" % ref
+##        print "path: %s" % path
+##        print "rev: %s" % rev
 
         path, kind, size, changed, by, at = repos.stat(url, rev)
 
@@ -116,14 +116,14 @@ class GetDir(SimpleCommand):
         if len(args) > 0:
             fields = args[0]
 
-        ref, path = repos.parse_url(url)
+##        ref, path = repos.parse_url(url)
 
-        print "ref: %s" % ref
-        print "path: %s" % path
-        print "rev: %s" % rev
-        print "want_props: %s" % want_props
-        print "want_contents: %s" % want_contents
-        print "fields: %s" % fields
+##        print "ref: %s" % ref
+##        print "path: %s" % path
+##        print "rev: %s" % rev
+##        print "want_props: %s" % want_props
+##        print "want_contents: %s" % want_contents
+##        print "fields: %s" % fields
 
         ls_data = []
 

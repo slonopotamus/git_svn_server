@@ -19,7 +19,7 @@ verbose_mode = False
 
 
 class Git (repos.Repos):
-    kind = 'git'
+    _kind = 'git'
 
     def __init__(self, host, base, config):
         self.repos_base = base

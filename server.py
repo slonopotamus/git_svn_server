@@ -112,8 +112,8 @@ class SvnRequestHandler(StreamRequestHandler):
         self.send('%s\n' % msg)
 
     def send_server_id(self):
-        self.send_msg(gen.success(gen.string(self.repos.uuid),
-                                  gen.string(self.repos.base_url)))
+        self.send_msg(gen.success(gen.string(self.repos.get_uuid()),
+                                  gen.string(self.repos.get_base_url())))
 
     def handle(self):
         sys.stderr.write('%d: -- NEW CONNECTION --\n' % os.getpid())
