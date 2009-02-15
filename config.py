@@ -9,6 +9,7 @@ class ConfigError(Exception):
 
 class Repos:
     location = ''
+    kind = 'svn'
     trunk = 'trunk'
     branches = 'branches/$(branch)'
     tags = 'tags/$(tag)'

@@ -1,0 +1,12 @@
+
+import imp as _imp
+import os as _os
+
+for _fname in _os.listdir(_os.path.dirname(__file__)):
+    if _fname.endswith('.py') and not _fname == '__init__.py':
+        _name = _fname[:-3]
+        _cname = _name.title()
+        _path = _os.path.join(_os.path.dirname(__file__), _fname)
+        globals()[_cname] = _imp.load_source(_name, _path).__dict__[_cname]
+
+del _imp, _os, _fname, _cname, _name, _path
