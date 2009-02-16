@@ -108,11 +108,10 @@ class GetDir(SimpleCommand):
             url = '/'.join((url, path))
 
         arg = args.pop(0)
-        if isinstance(arg, list):
+        if len(arg) > 0:
             rev = int(arg[0])
-            arg = args.pop(0)
 
-        want_props = parse.bool(arg)
+        want_props = parse.bool(args.pop(0))
 
         want_contents = parse.bool(args.pop(0))
 
