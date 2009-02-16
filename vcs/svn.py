@@ -81,6 +81,16 @@ class Svn (repos.Repos):
 
         return latest_rev
 
+    def check_path(self, url, rev):
+        location = self.__map_url(url, rev)
+
+        xml = self.__get_svn_xml('info %s' % location)
+
+        if len(xml) == 0:
+            return 'none'
+
+        return xml[0].get('kind')
+
     def stat(self, url, rev):
         path, kind, size, changed, by, at = None, None, 0, 0, None, None
 

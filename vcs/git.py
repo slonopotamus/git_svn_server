@@ -453,3 +453,13 @@ class Git (repos.Repos):
         mode, type, sha = self.get_path_info(url, rev)
 
         return self.kind_map(type)
+
+    def check_path(self, url, rev):
+        ref, path = self.parse_url(url)
+
+        if ref is None or path == '':
+            type = 'dir'
+        else:
+            type = self.svn_node_kind(url, rev)
+
+        return type

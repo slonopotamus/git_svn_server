@@ -55,6 +55,9 @@ class Repos (object):
     def get_latest_rev(self):
         raise UnImplemented()
 
+    def check_path(self, url, rev):
+        raise UnImplemented()
+
     def stat(self, url, rev):
         raise UnImplemented()
 

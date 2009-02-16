@@ -50,10 +50,7 @@ class CheckPath(SimpleCommand):
 ##        print "path: %s" % path
 ##        print "rev: %s" % rev
 
-        if ref is None or path == '':
-            type = 'dir'
-        else:
-            type = repos.svn_node_kind(url, rev)
+        type = repos.check_path(url, rev)
 
         self.link.send_msg(gen.success(type))
 
