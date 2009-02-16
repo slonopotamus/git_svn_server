@@ -168,7 +168,7 @@ class Log(SimpleCommand):
             if end_rev == 0:
                 end_rev = 1
 
-        changed_paths = parse.bool(args.pop(0))
+        send_changed_paths = parse.bool(args.pop(0))
 
         strict_node = parse.bool(args.pop(0))
 
@@ -186,11 +186,12 @@ class Log(SimpleCommand):
 
         for changes, rev, author, date, msg, has_children, revprops in repos.log(url, target_paths, start_rev, end_rev, limit):
             changed_paths = []
-            for path, change in changes:
-                changed_paths.append(gen.list(gen.string(path),
-                                              change,
-                                              gen.list(),
-                                              gen.list()))
+            if send_changed_paths:
+                for path, change in changes:
+                    changed_paths.append(gen.list(gen.string(path),
+                                                  change,
+                                                  gen.list(),
+                                                  gen.list()))
             log_entry = gen.list(gen.list(*changed_paths),
                                  rev,
                                  gen.list(gen.string(author)),
