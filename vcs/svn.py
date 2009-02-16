@@ -88,6 +88,9 @@ class Svn (repos.Repos):
 
         xml = self.__get_svn_xml('info %s' % location)
 
+        if len(xml) == 0:
+            return path, kind, size, changed, by, at
+
         element = xml[0]
 
         path = element.get('path')
@@ -112,6 +115,9 @@ class Svn (repos.Repos):
 
         xml = self.__get_svn_xml('ls %s' % location)
 
+        if len(xml) == 0:
+            return ls_data
+
         for element in xml[0]:
             path = element.find('name').text
             kind = element.get('kind')
@@ -125,3 +131,20 @@ class Svn (repos.Repos):
             ls_data.append((path, kind, size, changed, by, at))
 
         return ls_data
+
+    def log(self, url, target_paths, start_rev, end_rev, limit):
+        location = self.__map_url(url, start_rev)
+
+        log_data = []
+
+        xml = self.__get_svn_xml('log -v %s' % location)
+
+        for element in xml:
+            rev = int(element.get('revision'))
+            author = element.find('author').text
+            data = element.find('date').text
+            msg = element.find('msg').text
+
+        print target_paths
+
+        return log_data

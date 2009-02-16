@@ -81,14 +81,18 @@ class Stat(SimpleCommand):
 
         path, kind, size, changed, by, at = repos.stat(url, rev)
 
-        ls_data = gen.list(kind,
-                           size,
-                           'false', # has-props
-                           changed,
-                           gen.list(gen.string(at)),
-                           gen.list(gen.string(by)))
+        if path is None:
+            self.link.send_msg(gen.success(gen.list()))
 
-        self.link.send_msg(gen.success(gen.list(ls_data)))
+        else:
+            ls_data = gen.list(kind,
+                               size,
+                               'false', # has-props
+                               changed,
+                               gen.list(gen.string(at)),
+                               gen.list(gen.string(by)))
+
+            self.link.send_msg(gen.success(gen.list(ls_data)))
 
 class GetDir(SimpleCommand):
     _cmd = 'get-dir'
