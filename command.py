@@ -183,11 +183,13 @@ class Log(SimpleCommand):
         for changes, rev, author, date, msg, has_children, revprops in repos.log(url, target_paths, start_rev, end_rev, limit):
             changed_paths = []
             if send_changed_paths:
-                for path, change in changes:
+                for path, change, copy_path, copy_rev in changes:
+                    cp = gen.list()
+                    if copy_path is not None and copy_rev is not None:
+                        cp = gen.list(gen.string(copy_path), copy_rev)
                     changed_paths.append(gen.list(gen.string(path),
-                                                  change,
-                                                  gen.list(),
-                                                  gen.list()))
+                                                  change, cp, gen.list()))
+                                                  #change, cp, cr, gen.list()))
             log_entry = gen.list(gen.list(*changed_paths),
                                  rev,
                                  gen.list(gen.string(author)),

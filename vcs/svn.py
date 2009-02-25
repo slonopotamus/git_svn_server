@@ -147,14 +147,38 @@ class Svn (repos.Repos):
 
         log_data = []
 
-        xml = self.__get_svn_xml('log -v %s' % location)
+        options = ['-v']
+
+        print "target paths:", target_paths
+
+        if limit > 0:
+            options.append('--limit %d' % limit)
+
+        options.append('-r %d:%d' % (start_rev, end_rev))
+        options.append(location)
+
+        cmd = 'log  %s' % (' '.join(options))
+
+        xml = self.__get_svn_xml(cmd)
 
         for element in xml:
+            print element
+            changes = []
+            for el in element.findall('paths/path'):
+                change = el.get('action')
+                path = el.text
+                copy_path = el.get('copyfrom-path', None)
+                copy_rev = el.get('copyfrom-rev', None)
+                changes.append((path, change, copy_path, copy_rev))
             rev = int(element.get('revision'))
             author = element.find('author').text
-            data = element.find('date').text
+            date = element.find('date').text
             msg = element.find('msg').text
-
-        print target_paths
+            if msg is None:
+                msg = ''
+            has_children = False
+            revprops = []
+            log_data.append((changes, rev, author, date, msg,
+                             has_children, revprops))
 
         return log_data
