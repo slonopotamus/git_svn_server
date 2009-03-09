@@ -39,7 +39,7 @@ class CheckPath(SimpleCommand):
 
         path = parse.string(args[0])
         if len(path) > 0:
-            url = '/'.join((url_base, path))
+            url = '/'.join((url, path))
 
         if len(args) > 1:
             rev = int(args[1][0])
@@ -65,7 +65,7 @@ class Stat(SimpleCommand):
 
         path = parse.string(args[0])
         if len(path) > 0:
-            url = '/'.join((url_base, path))
+            url = '/'.join((url, path))
 
         if len(args) > 1:
             rev = int(args[1][0])
