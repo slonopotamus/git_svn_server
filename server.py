@@ -104,7 +104,10 @@ class SvnRequestHandler(StreamRequestHandler):
         return data
 
     def send(self, msg):
-        sys.stderr.write('%d>%s\n' % (os.getpid(), msg))
+        if len(msg) > 100:
+            sys.stderr.write('%d>%s...\n' % (os.getpid(), msg[:100]))
+        else:
+            sys.stderr.write('%d>%s\n' % (os.getpid(), msg))
         self.wfile.write('%s' % msg)
         self.wfile.flush()
 

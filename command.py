@@ -310,3 +310,79 @@ class Update(Command):
             self.link.send_msg(gen.error(1, 'client barfed'))
         else:
             self.link.send_msg(gen.success())
+
+class RevPropList (SimpleCommand):
+    _cmd = 'rev-proplist'
+
+    def do_cmd(self):
+        repos = self.link.repos
+        args = self.args
+
+        rev = int(args.pop(0))
+
+        print 'rev = %d' % rev
+
+        props = []
+        for name, value in repos.rev_proplist(rev):
+            p = gen.list(gen.string(name), gen.string(value))
+            props.append(p)
+
+        response = gen.list(*props)
+
+        self.link.send_msg(gen.success(response))
+
+class Reparent (SimpleCommand):
+    _cmd = 'reparent'
+
+    def do_cmd(self):
+        args = self.args
+
+        url = parse.string(args.pop(0))
+
+        if len(url) > 0:
+            print "new url: %s" % url
+            self.link.url = url
+
+        self.link.send_msg(gen.success())
+
+class GetFile (SimpleCommand):
+    _cmd = 'get-file'
+
+    def do_cmd(self):
+        repos = self.link.repos
+        args = self.args
+        url = self.link.url
+        rev = None
+
+        path = parse.string(args[0])
+        if len(path) > 0:
+            url = '/'.join((url, path))
+
+        if len(args[1]) > 0:
+            rev = int(args[1][0])
+
+        want_props = parse.bool(args[2])
+        want_contents = parse.bool(args[3])
+
+        print "props: %s, contents: %s" % (want_props, want_contents)
+
+        rev, props, contents = repos.get_file(url, rev)
+
+        p = []
+        if want_props:
+            for name, value in props:
+                p.append(gen.list(gen.string(name), gen.string(value)))
+
+        response = (gen.list(), rev, gen.list(*p))
+
+        self.link.send_msg(gen.success(*response))
+
+        if want_contents:
+            data = contents.read(8192)
+            while len(data) > 0:
+                self.link.send_msg(gen.string(data))
+                data = contents.read(8192)
+            self.link.send_msg(gen.string(''))
+            self.link.send_msg(gen.success())
+
+        contents.close()

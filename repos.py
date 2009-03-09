@@ -70,6 +70,12 @@ class Repos (object):
     def get_update(self, url, rev):
         raise UnImplemented()
 
+    def rev_proplist(self, rev):
+        raise UnImplemented()
+
+    def get_file(self, url, rev):
+        raise UnImplemented()
+
 
 repos_list = {}
 

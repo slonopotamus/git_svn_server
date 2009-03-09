@@ -8,6 +8,29 @@ import xml.etree.cElementTree as ElementTree
 svn_binary = "svn"
 verbose_mode = False
 
+svn_internal_props = ['svn:entry:uuid',
+                      'svn:entry:last-author',
+                      'svn:entry:committed-rev',
+                      'svn:entry:committed-date']
+
+
+class SvnData (object):
+    def __init__(self, command_string):
+        svn_command = "%s %s" % (svn_binary, command_string)
+
+        if verbose_mode:
+            print "  >> %s" % (svn_command)
+
+        (self._in, self._data, self._err) = os.popen3(svn_command)
+
+    def read(self, l=-1):
+        return self._data.read(l)
+
+    def close(self):
+        self._in.close()
+        self._data.close()
+        self._err.close()
+
 
 class Svn (repos.Repos):
     _kind = 'svn'
@@ -15,44 +38,27 @@ class Svn (repos.Repos):
     def __init__(self, host, base, config):
         super(Svn, self).__init__(host, base, config)
 
-    def __get_svn_raw_data(self, command_string):
-        svn_command = "%s %s" % (svn_binary, command_string)
+    def __get_svn_data(self, command_string):
+        svn_data = SvnData(command_string)
 
-        if verbose_mode:
-            print "  >> %s" % (svn_command)
+        data = [line.strip('\n') for line in svn_data._data]
 
-        (svn_in, svn_data, svn_err) = os.popen3(svn_command)
-
-        data = [line.strip('\n') for line in svn_data]
-
-        svn_in.close()
         svn_data.close()
-        svn_err.close()
 
         return data
 
-    def __get_svn_data(self, command_string):
-        data = self.__get_svn_raw_data(command_string)
-
-        return [line.strip('\n') for line in data]
-
     def __get_svn_xml(self, command_string):
-        svn_command = "%s --xml %s" % (svn_binary, command_string)
+        svn_data = SvnData("--xml %s" % command_string)
 
-        if verbose_mode:
-            print "  >> %s" % (svn_command)
+        element = ElementTree.parse(svn_data._data)
 
-        (svn_in, svn_data, svn_err) = os.popen3(svn_command)
-
-        element = ElementTree.parse(svn_data)
-
-        svn_in.close()
         svn_data.close()
-        svn_err.close()
 
         return element.getroot()
 
     def __map_url(self, url, rev=None):
+        new_url = url
+
         if url.startswith(self.base_url):
             new_url = url.replace(self.base_url, self.config.location)
 
@@ -182,3 +188,42 @@ class Svn (repos.Repos):
                              has_children, revprops))
 
         return log_data
+
+    def rev_proplist(self, rev):
+        location = self.__map_url(self.base_url)
+
+        cmd = 'proplist --revprop -v -r %d %s' % (rev, location)
+
+        data = self.__get_svn_data(cmd)
+
+        props = []
+        for line in data:
+            if line.startswith('  '):
+                name, value = line[2:].rsplit(' : ')
+                props.append((name, value))
+
+        return props
+
+    def get_file(self, url, rev):
+        location = self.__map_url(url, rev)
+
+        cmd = 'proplist -v %s' % location
+
+        data = self.__get_svn_data(cmd)
+
+        props = []
+        for line in data:
+            if line.startswith('  '):
+                name, value = line[2:].rsplit(' : ')
+                props.append((name, value))
+
+        for prop in svn_internal_props:
+            cmd = 'propget "%s" "%s"' % (prop, location)
+            value = self.__get_svn_data(cmd)[0]
+            if len(value) > 0:
+                props.append((prop, value))
+
+        cmd = 'cat %s' % location
+        contents = SvnData(cmd)
+
+        return rev, props, contents
