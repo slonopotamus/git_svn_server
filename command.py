@@ -1,5 +1,6 @@
 
 import generate as gen
+import md5
 import parse
 
 from cmd_base import *
@@ -373,15 +374,28 @@ class GetFile (SimpleCommand):
             for name, value in props:
                 p.append(gen.list(gen.string(name), gen.string(value)))
 
-        response = (gen.list(), rev, gen.list(*p))
+        m = md5.new()
+        data = contents.read(8192)
+        total_len = len(data)
+        while len(data) > 0:
+            m.update(data)
+            data = contents.read(8192)
+            total_len += len(data)
+        csum = gen.string(m.hexdigest())
+
+        response = (gen.list(csum), rev, gen.list(*p))
 
         self.link.send_msg(gen.success(*response))
 
         if want_contents:
-            data = contents.read(8192)
-            while len(data) > 0:
+            if total_len == len(data):
                 self.link.send_msg(gen.string(data))
+            else:
+                contents.reopen()
                 data = contents.read(8192)
+                while len(data) > 0:
+                    self.link.send_msg(gen.string(data))
+                    data = contents.read(8192)
             self.link.send_msg(gen.string(''))
             self.link.send_msg(gen.success())
 

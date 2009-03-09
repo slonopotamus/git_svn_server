@@ -16,12 +16,14 @@ svn_internal_props = ['svn:entry:uuid',
 
 class SvnData (object):
     def __init__(self, command_string):
-        svn_command = "%s %s" % (svn_binary, command_string)
+        self._cmd = "%s %s" % (svn_binary, command_string)
+        self.open()
 
+    def open(self):
         if verbose_mode:
-            print "  >> %s" % (svn_command)
+            print "  >> %s" % (self._cmd)
 
-        (self._in, self._data, self._err) = os.popen3(svn_command)
+        (self._in, self._data, self._err) = os.popen3(self._cmd)
 
     def read(self, l=-1):
         return self._data.read(l)
@@ -30,6 +32,10 @@ class SvnData (object):
         self._in.close()
         self._data.close()
         self._err.close()
+
+    def reopen(self):
+        self.close()
+        self.open()
 
 
 class Svn (repos.Repos):
