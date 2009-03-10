@@ -217,17 +217,26 @@ class Svn (repos.Repos):
 
         return self.__get_svn_props(cmd)
 
-    def get_file(self, url, rev):
+    def get_props(self, url, rev, include_internal=True):
         location = self.__map_url(url, rev)
 
         cmd = 'proplist -v %s' % location
 
         props = self.__get_svn_props(cmd)
-        for prop in svn_internal_props:
-            cmd = 'propget "%s" "%s"' % (prop, location)
-            value = '\n'.join(self.__get_svn_data(cmd))
-            if len(value) > 0:
-                props.append((prop, value))
+
+        if include_internal:
+            for prop in svn_internal_props:
+                cmd = 'propget "%s" "%s"' % (prop, location)
+                value = '\n'.join(self.__get_svn_data(cmd))
+                if len(value) > 0:
+                    props.append((prop, value))
+
+        return props
+
+    def get_file(self, url, rev):
+        location = self.__map_url(url, rev)
+
+        props = self.get_props(url, rev)
 
         cmd = 'cat %s' % location
         contents = SvnData(cmd)

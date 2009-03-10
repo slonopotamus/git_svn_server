@@ -117,27 +117,29 @@ class GetDir(SimpleCommand):
         if len(args) > 0:
             fields = args[0]
 
-##        ref, path = repos.parse_url(url)
-
-##        print "ref: %s" % ref
-##        print "path: %s" % path
-##        print "rev: %s" % rev
-##        print "want_props: %s" % want_props
-##        print "want_contents: %s" % want_contents
-##        print "fields: %s" % fields
-
         ls_data = []
+        if want_contents:
+            for path, kind, size, changed, by, at in repos.ls(url, rev):
+                path_url = "%s/%s" % (url, path)
+                if len(repos.get_props(path_url, rev, False)) == 0:
+                    has_props = 'false'
+                else:
+                    has_props = 'true'
+                print path_url, has_props
+                ls_data.append(gen.list(gen.string(path),
+                                        kind,
+                                        size,
+                                        has_props,
+                                        changed,
+                                        gen.list(gen.string(at)),
+                                        gen.list(gen.string(by))))
 
-        for path, kind, size, changed, by, at in repos.ls(url, rev):
-            ls_data.append(gen.list(gen.string(path),
-                                    kind,
-                                    size,
-                                    'false', # has-props
-                                    changed,
-                                    gen.list(gen.string(at)),
-                                    gen.list(gen.string(by))))
+        p = []
+        if want_props:
+            for name, value in repos.get_props(url, rev):
+                p.append(gen.list(gen.string(name), gen.string(value)))
 
-        response = "%d ( ) %s" % (rev, gen.list(*ls_data))
+        response = "%d %s %s" % (rev, gen.list(*p), gen.list(*ls_data))
 
         self.link.send_msg(gen.success(response))
 
