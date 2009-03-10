@@ -21,6 +21,8 @@ if socket.has_ipv6:
     addr_family = socket.AF_INET6
     all_interfaces = "::"
 
+MAX_DBG_MLEN = 1000
+
 class SvnServer(ForkingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
@@ -112,8 +114,8 @@ class SvnRequestHandler(StreamRequestHandler):
         return data
 
     def send(self, msg):
-        if len(msg) > 100:
-            sys.stderr.write('%d>%s...\n' % (os.getpid(), msg[:100]))
+        if len(msg) > MAX_DBG_MLEN:
+            sys.stderr.write('%d>%s...\n' % (os.getpid(), msg[:MAX_DBG_MLEN]))
         else:
             sys.stderr.write('%d>%s\n' % (os.getpid(), msg))
         self.wfile.write('%s' % msg)
