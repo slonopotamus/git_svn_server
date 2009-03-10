@@ -62,6 +62,21 @@ class Svn (repos.Repos):
 
         return element.getroot()
 
+    def __get_svn_props(self, command_string):
+        data = self.__get_svn_data(command_string)
+
+        props = []
+        for line in data:
+            if line.startswith('  '):
+                name, value = line[2:].split(' : ', 1)
+                props.append((name, value))
+            elif len(props) > 0:
+                name, value = props[-1]
+                value += '\n' + line
+                props[-1] = (name, value)
+
+        return props
+
     def __map_url(self, url, rev=None):
         new_url = url
 
@@ -200,32 +215,17 @@ class Svn (repos.Repos):
 
         cmd = 'proplist --revprop -v -r %d %s' % (rev, location)
 
-        data = self.__get_svn_data(cmd)
-
-        props = []
-        for line in data:
-            if line.startswith('  '):
-                name, value = line[2:].rsplit(' : ')
-                props.append((name, value))
-
-        return props
+        return self.__get_svn_props(cmd)
 
     def get_file(self, url, rev):
         location = self.__map_url(url, rev)
 
         cmd = 'proplist -v %s' % location
 
-        data = self.__get_svn_data(cmd)
-
-        props = []
-        for line in data:
-            if line.startswith('  '):
-                name, value = line[2:].rsplit(' : ')
-                props.append((name, value))
-
+        props = self.__get_svn_props(cmd)
         for prop in svn_internal_props:
             cmd = 'propget "%s" "%s"' % (prop, location)
-            value = self.__get_svn_data(cmd)[0]
+            value = '\n'.join(self.__get_svn_data(cmd))
             if len(value) > 0:
                 props.append((prop, value))
 
