@@ -9,12 +9,20 @@ import client
 import command
 import editor
 import report
+import socket
 
 import generate as gen
 from config import config
 from errors import *
 
+addr_family = socket.AF_INET
+all_interfaces = "0.0.0.0"
+if socket.has_ipv6:
+    addr_family = socket.AF_INET6
+    all_interfaces = "::"
+
 class SvnServer(ForkingTCPServer):
+    address_family = addr_family
     allow_reuse_address = True
     pass
 
@@ -173,7 +181,7 @@ class SvnRequestHandler(StreamRequestHandler):
 def main():
     config.load('test.cfg')
 
-    server = SvnServer(('0.0.0.0', 3690), SvnRequestHandler)
+    server = SvnServer((all_interfaces, 3690), SvnRequestHandler)
 
     try:
         server.serve_forever()
