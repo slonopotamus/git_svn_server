@@ -189,7 +189,6 @@ class Svn (repos.Repos):
         xml = self.__get_svn_xml(cmd)
 
         for element in xml:
-            print element
             changes = []
             for el in element.findall('paths/path'):
                 change = el.get('action')
