@@ -9,9 +9,10 @@ def encode_int(i):
 
     return s
 
-def encode_new_file(data):
-    res = ['SVN' + chr(0)]
+def header():
+    return 'SVN' + chr(0)
 
+def encode_new(data):
     i = chr(128) + encode_int(len(data))
 
     w = encode_int(0)
@@ -23,6 +24,4 @@ def encode_new_file(data):
 
     w += data
 
-    res.append(w)
-
-    return res
+    return w
