@@ -27,7 +27,9 @@ verbose = False
 class SvnServer(ForkingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
-    pass
+    def __init__(self, address=(all_interfaces, 3690)):
+        ForkingTCPServer.__init__(self, address, SvnRequestHandler)
+
 
 class SvnRequestHandler(StreamRequestHandler):
     def __init__(self, request, client_address, server):
@@ -178,6 +180,7 @@ class SvnRequestHandler(StreamRequestHandler):
             pass
         sys.stderr.write('%d: -- CLOSE CONNECTION --\n' % os.getpid())
 
+
 def debug(msg):
     if not verbose:
         return
@@ -186,15 +189,17 @@ def debug(msg):
     else:
         sys.stderr.write('%s\n' % (msg))
 
+
 def main():
     config.load('test.cfg')
 
-    server = SvnServer((all_interfaces, 3690), SvnRequestHandler)
+    server = SvnServer((all_interfaces, 3690))
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+
 
 if __name__ == "__main__":
     main()

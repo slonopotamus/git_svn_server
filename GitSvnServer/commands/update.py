@@ -1,10 +1,9 @@
 
-import generate as gen
 import md5
-import parse
-import svndiff
 
-from cmd_base import *
+from GitSvnServer import parse, svndiff
+from GitSvnServer import generate as gen
+from GitSvnServer.cmd_base import *
 
 class Update(Command):
     _cmd = 'update'

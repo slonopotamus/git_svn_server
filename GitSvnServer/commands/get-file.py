@@ -1,9 +1,9 @@
 
-import generate as gen
 import md5
-import parse
 
-from cmd_base import *
+from GitSvnServer import parse
+from GitSvnServer import generate as gen
+from GitSvnServer.cmd_base import *
 
 class GetFile (SimpleCommand):
     _cmd = 'get-file'

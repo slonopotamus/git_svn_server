@@ -1,6 +1,7 @@
 
 import os
-import repos
+
+from GitSvnServer import repos
 
 import xml.etree.cElementTree as ElementTree
 

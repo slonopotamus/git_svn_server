@@ -4,8 +4,7 @@ import re
 import sys
 import time
 
-import svndiff
-import repos
+from GitSvnServer import svndiff, repos
 
 
 commit_tree_re = re.compile(r'tree (?P<sha>[0-9a-fA-F]{40,40})')
