@@ -235,6 +235,11 @@ class Svn (repos.Repos):
     def get_file(self, url, rev):
         location = self.__map_url(url, rev)
 
+        xml = self.__get_svn_xml('info %s' % location)
+
+        if len(xml) == 0:
+            return rev, [], None
+
         props = self.get_props(url, rev)
 
         cmd = 'cat %s' % location
