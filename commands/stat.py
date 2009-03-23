@@ -33,9 +33,11 @@ class Stat(SimpleCommand):
             self.link.send_msg(gen.success(gen.list()))
 
         else:
+            props = repos.get_props(url, rev, False)
+
             ls_data = gen.list(kind,
                                size,
-                               'false', # has-props
+                               gen.bool(len(props) > 0),
                                changed,
                                gen.list(gen.string(at)),
                                gen.list(gen.string(by)))
