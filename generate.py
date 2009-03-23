@@ -8,6 +8,12 @@ def tuple(n, *args):
 def string(s):
     return "%d:%s" % (len(s), s)
 
+def bool(b):
+    if b:
+        return 'true'
+    else:
+        return 'false'
+
 def success(*args):
     return tuple('success', *args)
 
@@ -15,7 +21,7 @@ def failure(*args):
     return tuple('failure', *args)
 
 def error(errno, errstr):
-    return failure(list(str(errno), string(errstr), string('...'), '0'))
+    return failure(list(str(errno), string(errstr), string('...'), 0))
 
 def cmd_success(*args):
     return "%s %s" % (success('( )', string('')), success(*args))
