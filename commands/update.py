@@ -11,7 +11,7 @@ class Update(Command):
 
     def report_set_path(self, path, rev, start_empty, lock_token, depth):
         self.prev_revs[path] = (rev, start_empty)
-        print "report: set path"
+        print "report: set path - %s %d %s" % (path, rev, start_empty)
 
     def report_link_path(self, path, url, rev, start_empty, lock_token, depth):
         print "report: link path"
@@ -25,11 +25,34 @@ class Update(Command):
 
     @cmd_step
     def get_reports(self):
-        self.prev_revs = {}
+        self.prev_revs = {'' : (None, True)}
         raise ChangeMode('report')
 
+    def get_parent_path(self, path):
+        if '/' in path:
+            parent_path, a = path.rsplit('/', 1)
+        else:
+            parent_path = ''
+
+        return parent_path
+
+    def get_prev(self, path):
+        if path in self.prev_revs:
+            return self.prev_revs[path]
+
+        parent_path = self.get_parent_path(path)
+        while parent_path not in self.prev_revs:
+            parent_path = self.get_parent_path(parent_path)
+
+        rev, start_empty = self.prev_revs[parent_path]
+
+        if start_empty:
+            return None, True
+
+        return rev, start_empty
+
     def get_token(self, path):
-        return 'tok%s' % path
+        return 'tok%s' % md5.new(path).hexdigest()
 
     def update_dir(self, path, rev, parent_token=None):
         repos = self.link.repos
@@ -38,34 +61,57 @@ class Update(Command):
         new_dir = True
         token = self.get_token(path)
 
+        prev_rev, start_empty = self.get_prev(path)
+
+        if prev_rev is None:
+            new_dir = True
+            prev_rev = None
+        elif prev_rev is not None:
+            stat = repos.stat(url, prev_rev)
+            new_dir = stat[0] is None
+
         if parent_token is None:
             self.link.send_msg(gen.tuple('open-root', gen.list(rev),
                                          gen.string(token)))
-
-            if new_dir:
-                for name, value in repos.get_props(url, rev):
-                    self.link.send_msg(gen.tuple('change-dir-prop',
-                                                 gen.string(token),
-                                                 gen.string(name),
-                                                 gen.list(gen.string(value))))
 
         elif new_dir:
             self.link.send_msg(gen.tuple('add-dir', gen.string(path),
                                          gen.string(parent_token),
                                          gen.string(token), '( )'))
 
-            for name, value in repos.get_props(url, rev):
-                self.link.send_msg(gen.tuple('change-dir-prop',
-                                             gen.string(token),
-                                             gen.string(name),
-                                             gen.list(gen.string(value))))
+            prev_rev = None
 
         else:
-            self.link.send_msg(gen.tuple('open-dir', gen.string(parent_token),
-                                         gen.string(token), rev))
+            self.link.send_msg(gen.tuple('open-dir',
+                                         gen.string(path),
+                                         gen.string(parent_token),
+                                         gen.string(token),
+                                         gen.list(rev)))
+
+        prev_props = {}
+        if prev_rev is not None:
+            for name, value in repos.get_props(url, prev_rev):
+                prev_props[name] = value
+
+        for name, value in repos.get_props(url, rev):
+            if name in prev_props:
+                if prev_props[name] == value:
+                    del prev_props[name]
+                    continue
+                del prev_props[name]
+
+            self.link.send_msg(gen.tuple('change-dir-prop',
+                                         gen.string(token),
+                                         gen.string(name),
+                                         gen.list(gen.string(value))))
+
+        for name in prev_props.keys():
+            self.link.send_msg(gen.tuple('change-dir-prop',
+                                         gen.string(token),
+                                         gen.string(name),
+                                         gen.list()))
 
         for entry in repos.ls(url, rev):
-            print entry
             name, kind, size, last_rev, last_author, last_date = entry
             if len(path) == 0:
                 entry_path = name
@@ -84,50 +130,81 @@ class Update(Command):
         repos = self.link.repos
         url = '/'.join((self.link.url, path))
 
-        new_file = True
         token = self.get_token(path)
+
+        prev_rev, start_empty = self.get_prev(path)
+
+        if prev_rev is None:
+            prev_pl = []
+            prev_contents = None
+        elif prev_rev == rev:
+            return
+        else:
+            prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev)
+
+        new_file = prev_contents is None
+
+        rev, props, contents = repos.get_file(url, rev)
 
         if new_file:
             self.link.send_msg(gen.tuple('add-file', gen.string(path),
                                          gen.string(parent_token),
                                          gen.string(token), '( )'))
 
-            rev, props, contents = repos.get_file(url, rev)
-
-            for name, value in props:
-                self.link.send_msg(gen.tuple('change-file-prop',
-                                             gen.string(token),
-                                             gen.string(name),
-                                             gen.list(gen.string(value))))
-
-            self.link.send_msg(gen.tuple('apply-textdelta', gen.string(token),
-                                         '( )'))
-
-            self.link.send_msg(gen.tuple('textdelta-chunk',
-                                         gen.string(token),
-                                         gen.string(svndiff.header())))
-
-            m = md5.new()
-            data = contents.read(8192)
-            while len(data) > 0:
-                m.update(data)
-                diff_chunk = svndiff.encode_new(data)
-                self.link.send_msg(gen.tuple('textdelta-chunk',
-                                             gen.string(token),
-                                             gen.string(diff_chunk)))
-                data = contents.read(8192)
-            csum = m.hexdigest()
-
-            self.link.send_msg(gen.tuple('textdelta-end', gen.string(token)))
-
         else:
             self.link.send_msg(gen.tuple('open-file', gen.string(path),
                                          gen.string(parent_token),
-                                         gen.string(token), rev))
+                                         gen.string(token),
+                                         gen.list(rev)))
 
+        self.link.send_msg(gen.tuple('apply-textdelta', gen.string(token),
+                                     '( )'))
+
+        self.link.send_msg(gen.tuple('textdelta-chunk',
+                                     gen.string(token),
+                                     gen.string(svndiff.header())))
+
+        m = md5.new()
+        data = contents.read(8192)
+        while len(data) > 0:
+            m.update(data)
+            diff_chunk = svndiff.encode_new(data)
+            self.link.send_msg(gen.tuple('textdelta-chunk',
+                                         gen.string(token),
+                                         gen.string(diff_chunk)))
+            data = contents.read(8192)
+        csum = m.hexdigest()
+
+        if prev_contents:
+            prev_contents.close()
+        contents.close()
+
+        self.link.send_msg(gen.tuple('textdelta-end', gen.string(token)))
+
+        prev_props = {}
+        for name, value in prev_pl:
+            prev_props[name] = value
+
+        for name, value in props:
+            if name in prev_props:
+                if prev_props[name] == value:
+                    del prev_props[name]
+                    continue
+                del prev_props[name]
+
+            self.link.send_msg(gen.tuple('change-file-prop',
+                                         gen.string(token),
+                                         gen.string(name),
+                                         gen.list(gen.string(value))))
+
+        for name in prev_props.keys():
+            self.link.send_msg(gen.tuple('change-file-prop',
+                                         gen.string(token),
+                                         gen.string(name),
+                                         gen.list()))
 
         self.link.send_msg(gen.tuple('close-file', gen.string(token),
-                                     gen.tuple(gen.string(csum))))
+                                     gen.list(gen.string(csum))))
 
     @cmd_step
     def send_update(self):
