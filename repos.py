@@ -67,9 +67,6 @@ class Repos (object):
     def log(self, url, target_paths, start_rev, end_rev, limit):
         raise UnImplemented()
 
-    def get_update(self, url, rev):
-        raise UnImplemented()
-
     def rev_proplist(self, rev):
         raise UnImplemented()
 
