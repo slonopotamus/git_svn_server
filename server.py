@@ -22,6 +22,7 @@ if socket.has_ipv6:
     all_interfaces = "::"
 
 MAX_DBG_MLEN = 1000
+verbose = False
 
 class SvnServer(ForkingTCPServer):
     address_family = addr_family
@@ -71,7 +72,7 @@ class SvnRequestHandler(StreamRequestHandler):
 
             t += ch
 
-        sys.stderr.write('%d<%s\n' % (os.getpid(), t))
+        debug('%d<%s' % (os.getpid(), t))
         return t
 
     def read(self, count):
@@ -85,7 +86,7 @@ class SvnRequestHandler(StreamRequestHandler):
 
             data += s
 
-        sys.stderr.write('%d<%s\n' % (os.getpid(), data))
+        debug('%d<%s' % (os.getpid(), data))
         return data
 
     def read_str(self):
@@ -110,14 +111,11 @@ class SvnRequestHandler(StreamRequestHandler):
 
             data += s
 
-        sys.stderr.write('%d<%s\n' % (os.getpid(), data))
+        debug('%d<%s' % (os.getpid(), data))
         return data
 
     def send(self, msg):
-        if len(msg) > MAX_DBG_MLEN:
-            sys.stderr.write('%d>%s...\n' % (os.getpid(), msg[:MAX_DBG_MLEN]))
-        else:
-            sys.stderr.write('%d>%s\n' % (os.getpid(), msg))
+        debug('%d>%s' % (os.getpid(), msg))
         self.wfile.write('%s' % msg)
         self.wfile.flush()
 
@@ -179,6 +177,14 @@ class SvnRequestHandler(StreamRequestHandler):
         except EOF:
             pass
         sys.stderr.write('%d: -- CLOSE CONNECTION --\n' % os.getpid())
+
+def debug(msg):
+    if not verbose:
+        return
+    if len(msg) > MAX_DBG_MLEN:
+        sys.stderr.write('%s...\n' % (msg[:MAX_DBG_MLEN]))
+    else:
+        sys.stderr.write('%s\n' % (msg))
 
 def main():
     config.load('test.cfg')
