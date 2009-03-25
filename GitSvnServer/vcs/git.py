@@ -1,88 +1,113 @@
-import md5
+
 import os
 import re
-import sys
-import time
+import sqlite3
 
-from GitSvnServer import svndiff, repos
-
-
-commit_tree_re = re.compile(r'tree (?P<sha>[0-9a-fA-F]{40,40})')
-commit_parent_re = re.compile(r'parent (?P<sha>[0-9a-fA-F]{40,40})')
-commit_author_re = re.compile(r'author (?P<name>.*) <(?P<email>.*)> (?P<when>\d+) (?P<tz>\+\d{4,4})')
-commit_comitter_re = re.compile(r'comitter (?P<name>.*) <(?P<email>.*)> (?P<when>\d+) (?P<tz>\+\d{4,4})')
+from GitSvnServer import repos
 
 
 git_binary = "git"
-verbose_mode = False
+
+
+class GitData (object):
+    def __init__(self, command_string):
+        self._cmd = "%s %s" % (git_binary, command_string)
+        self.open()
+
+    def open(self):
+        if verbose_mode:
+            print "  >> %s" % (self._cmd)
+
+        (self._in, self._data, self._err) = os.popen3(self._cmd)
+
+    def read(self, l=-1):
+        return self._data.read(l)
+
+    def close(self):
+        self._in.close()
+        self._data.close()
+        self._err.close()
+
+    def reopen(self):
+        self.close()
+        self.open()
+
+
+class GitMap (object):
+    def __init__(self, repo_location):
+        self.map_file = os.path.join(repo_location, 'svnserver', 'map')
+
+    def __connect(self):
+        conn = sqlite3.connect(self.map_file)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def __execute(self, sql, *args):
+        conn = self.__connect()
+        results = conn.execute(sql, args).fetchall()
+        conn.close()
+        return results
+
+    def get_uuid(self):
+        rows = self.__execute('SELECT value FROM meta WHERE name = "uuid"')
+        if len(rows) == 0:
+            return None
+        return rows[0]['value']
+
+    def get_latest_rev(self):
+        conn = self.__connect()
+        sql = 'SELECT revision FROM transactions ORDER BY revision DESC'
+        row = conn.execute(sql).fetchone()
+        conn.close()
+        if row is None:
+            return None
+        return int(row['revision'])
+
+    def find_commit(self, ref, rev):
+        conn = self.__connect()
+        sql = 'SELECT revision, action, sha1 FROM transactions WHERE ref = ? ' \
+              'AND revision <= ? ORDER BY revision DESC'
+        row = conn.execute(sql, (ref, rev)).fetchone()
+        conn.close()
+
+        if row is None:
+            return None
+
+        if row['action'] in ['commit', 'create branch']:
+            return rows[i]['sha1']
+        elif row['action'] == 'delete branch':
+            return None
+
+        return None
 
 
 class Git (repos.Repos):
     _kind = 'git'
 
     def __init__(self, host, base, config):
-        self.repos_base = base
-        self.uuid = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
-        self.base_url = 'svn://%s/%s' % (host, base)
-        self.repos = config
-        self.trunk_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' % \
-                                   (self.base_url, self.repos.trunk))
-        branches = self.repos.branches.replace('$(branch)', '(?P<branch>[^/]+)')
-        self.branch_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' % \
+        super(Git, self).__init__(host, base, config)
+        self.map = GitMap(config.location)
+        self.trunk_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
+                                   (self.base_url, config.trunk))
+        branches = config.branches.replace('$(branch)', '(?P<branch>[^/]+)')
+        self.branch_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
                                     (self.base_url, branches))
-        tags = self.repos.tags.replace('$(tag)', '(?P<tag>[^/]+)')
-        self.tag_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' % \
+        tags = config.tags.replace('$(tag)', '(?P<tag>[^/]+)')
+        self.tag_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
                                  (self.base_url, tags))
-        self.other_re = re.compile(r'^%s(/(?P<path>.*))?$' % \
+        self.other_re = re.compile(r'^%s(/(?P<path>.*))?$' %
                                    (self.base_url))
 
-    def send_server_id(self, link):
-        link.send_msg(gen.success(gen.string(self.uuid),
-                                  gen.string(self.base_url)))
+    def __get_git_data(self, command_string):
+        git_data = GitData(command_string)
 
-    def get_git_data(self, command_string):
-        git_command = "%s %s" % (git_binary, command_string)
+        data = [line.strip('\n') for line in git_data._data]
 
-        if verbose_mode:
-            print "  >> %s" % (git_command)
-
-        cwd = os.getcwd()
-        os.chdir(self.repos.location)
-
-        (git_in, git_data, git_err) = os.popen3(git_command)
-
-        data = [line.strip('\n') for line in git_data]
-
-        git_in.close()
         git_data.close()
-        git_err.close()
-
-        os.chdir(cwd)
 
         return data
 
-    def get_raw_git_data(self, command_string):
-        git_command = "%s %s" % (git_binary, command_string)
-
-        if verbose_mode:
-            print "  >> %s" % (git_command)
-
-        cwd = os.getcwd()
-        os.chdir(self.repos.location)
-
-        (git_in, git_data, git_err) = os.popen3(git_command)
-
-        data = git_data.read()
-
-        git_in.close()
-        git_data.close()
-        git_err.close()
-
-        os.chdir(cwd)
-
-        return data
-
-    def parse_url(self, url):
+    def __map_url(url):
         if url == self.base_url:
             return (None, '')
 
@@ -113,332 +138,7 @@ class Git (repos.Repos):
 
         return (ref, path)
 
-    def get_rev_map(self):
-        orig_path = sys.path
-        sys.path = [self.repos.location]
-        from sha_map import rev_map
-        sys.path = orig_path
-        return rev_map
-
-    def map_ref(self, ref):
-        orig_path = sys.path
-        sys.path = [self.repos.location]
-        from sha_map import sha_map
-        sys.path = orig_path
-        return sha_map.get(ref, None)
-
-    def get_latest_rev(self):
-        max_rev = 0
-
-        for rev in self.get_rev_map().keys():
-            max_rev = max(max_rev, rev)
-
-        return max_rev
-
-    def map_rev(self, ref, rev):
-        ref_map = {}
-        rev_map = self.get_rev_map()
-
-        if ref in ref_map:
-            revs = foo
-            commit = ref_map[ref][rev]
-        else:
-            commit = rev_map[rev]
-
-        return commit
-
-    def get_path_info(self, url, rev=None, recurse=False):
-        ref, path = self.parse_url(url)
-        
-        commit = self.map_rev(ref, rev)
-
-        opts = ''
-        if recurse:
-            opts += '-r -t'
-
-        cmd = 'ls-tree %s %s "%s"' % (opts, commit, path)
-
-        data = self.get_git_data(cmd)
-
-        print data
-
-        if len(data) != 1:
-            return (None, None, None)
-
-        mode, type, sha, git_path = data[0].split()
-
-        if path != git_path:
-            return (None, None, None)
-
-        return mode, type, sha
-
-    def stat_pseudo_path(self, path, rev=None):
-
-        if self.repos.trunk.startswith(path):
-            pass
-
-        if self.repos.branches.startswith(path):
-            pass
-
-        if self.repos.tags.startswith(path):
-            pass
-
-        raise foo
-
-        return (fname, kind, int(size),
-                last_changed, last_changed_by, last_changed_at)
-
-    def stat(self, url, rev=None):
-        ref, path = self.parse_url(url)
-
-        if ref is None:
-            return self.stat_pseudo_path(path, rev)
-
-        commit = self.map_rev(ref, rev)
-
-        if path == '':
-            cmd = 'rev-parse %s^{tree}' % (commit)
-
-            data = self.get_git_data(cmd)
-
-            if len(data) > 1:
-                raise foo
-
-            type = 'tree'
-            sha = data[0]
-            name = ''
-            fname = ''
-
-        else:
-            cmd = 'ls-tree -l %s "%s"' % (commit, path)
-
-            data = self.get_git_data(cmd)
-
-            if len(data) > 1:
-                raise foo
-
-            mode, type, sha, size, name = data[0].split()
-            name_bits = name.split('/')
-
-            fname = name_bits[-1]
-
-        if type == 'tree':
-            size = 0
-
-        kind = self.kind_map(type)
-
-        name_rev = self.get_git_data('rev-list -n 1 %s -- %s' % \
-                                     (commit, name))
-        if len(name_rev) != 1:
-            last_changed = 0
-            last_changed_by = '...'
-        else:
-            last_commit = name_rev[0]
-            last_changed = self.map_ref(last_commit)
-            t, p, n, email, at, m = self.get_commit_info(last_commit)
-            last_changed_at = at
-            last_changed_by = email
-
-        return (fname, kind, int(size),
-                last_changed, last_changed_by, last_changed_at)
-
-    def ls(self, url, rev=None):
-        ref, path = self.parse_url(url)
-        if path == '':
-            path_bits = []
-        else:
-            path_bits = path.split('/')
-
-        commit = self.map_rev(ref, rev)
-
-        cmd = 'ls-tree -l -r -t %s "%s"' % (commit, path)
-
-        data = self.get_git_data(cmd)
-
-        ls_data = []
-        for line in data:
-            mode, type, sha, size, name = line.split()
-            name_bits = name.split('/')
-
-            if len(name_bits) != len(path_bits) + 1:
-                continue
-
-            if '/'.join(name_bits[:-1]) != path:
-                continue
-
-            fname = name_bits[-1]
-
-            if type == 'tree':
-                size = 0
-
-            kind = self.kind_map(type)
-
-            name_rev = self.get_git_data('rev-list -n 1 %s -- %s' % \
-                                         (commit, name))
-            if len(name_rev) != 1:
-                last_changed = 0
-                last_changed_by = '...'
-            else:
-                last_commit = name_rev[0]
-                last_changed = self.map_ref(last_commit)
-                t, p, n, email, at, m = self.get_commit_info(last_commit)
-                last_changed_at = at
-                last_changed_by = email
-
-            ls_data.append((fname, kind, int(size),
-                            last_changed, last_changed_by, last_changed_at))
-
-        return ls_data
-
-    def log(self, url, paths, start_rev, end_rev, limit=0):
-        ref, path = self.parse_url(url)
-
-        if start_rev <= end_rev:
-            low_rev = start_rev
-            high_rev = end_rev + 1
-        else:
-            low_rev = end_rev
-            high_rev = start_rev + 1
-
-        log_entries = []
-
-        print paths
-
-        for rev in range(low_rev, high_rev):
-            commit = self.map_rev(ref, rev)
-            rev = self.map_ref(commit)
-
-            changes = []
-
-            changed_files = self.get_changed_files(commit)
-            for p, c in changed_files.items():
-                for tp in paths:
-                    if p.startswith(tp):
-                        changes.append((p, c))
-
-            if len(changes) == 0:
-                continue
-
-            t, p, n, email, at, msg = self.get_commit_info(commit)
-            log_entries.append((changes, rev, email, at, msg, False, []))
-
-        if start_rev > end_rev:
-            log_entries.reverse()
-
-        return log_entries
-
-    def get_update(self, url, rev, previous_url=None, previous_rev=None):
-        pdata = []
-        if previous_url is not None and previous_rev is not None:
-            pref, ppath = self.parse_url(previous_url)
-            pcommit = self.map_rev(pref, previous_rev)
-
-            cmd = 'ls-tree -l -r -t %s "%s"' % (pcommit, ppath)
-            pdata = self.get_git_data(cmd)
-
-        ref, path = self.parse_url(url)
-        commit = self.map_rev(ref, rev)
-
-        cmd = 'ls-tree -l -r -t %s "%s"' % (commit, path)
-        data = self.get_git_data(cmd)
-
-        prev = {}
-        for line in pdata:
-            mode, type, sha, size, name = line.split()
-            if type == 'tree':
-                name += '/'
-            prev[name] = (mode, type, sha, size)
-
-        added = []
-        modified = []
-        deleted = []
-
-        now = {}
-        for line in data:
-            mode, type, sha, size, name = line.split()
-            if type == 'tree':
-                name += '/'
-            now[name] = (mode, type, sha, size)
-
-            if name not in prev:
-                added.append(name)
-                continue
-
-            pmode, ptype, psha, psize = prev[name]
-
-            if pmode != mode or \
-                   ptype != type or \
-                   psha != sha or \
-                   psize != size:
-                modified.append(name)
-
-        for name in prev:
-            if name not in now:
-                deleted.append(name)
-
-        for name in sorted(added + modified + deleted):
-            mode, type, sha, size = now[name]
-
-            if name in added and type == 'blob':
-                cmd = 'cat-file blob %s' % sha
-                data = self.get_raw_git_data(cmd)
-                diff = svndiff.encode_new_file(data)
-                csum = md5.new(data).hexdigest()
-                props = {}
-                props['svn:entry:uuid'] = self.uuid
-                yield name, self.kind_map(type), sha, props, diff, csum
-                continue
-
-            yield name, self.kind_map(type), sha, {}, [''], ''
-
-    def get_changed_files(self, commit):
-        data = self.get_git_data('show --pretty=oneline --name-status %s' %
-                                 commit)
-
-        changed_files = {}
-
-        for line in data[1:]:
-            if line.strip() == '':
-                continue
-            print line
-            change, path = line.split('\t', 1)
-            changed_files[path] = change
-
-        return changed_files
-
-    def get_commit_info(self, commit):
-        data = self.get_git_data('cat-file commit %s' % commit)
-
-        parents = []
-        msg_offset = 0
-        for line in data:
-            msg_offset += 1
-            if line == '':
-                break
-            tree_m = commit_tree_re.match(line)
-            parent_m = commit_parent_re.match(line)
-            author_m = commit_author_re.match(line)
-            comitter_m = commit_comitter_re.match(line)
-            if tree_m:
-                tree = tree_m.group('sha')
-            elif parent_m:
-                parents.append(parent_m.group('sha'))
-            elif author_m:
-                name = author_m.group('name')
-                email = author_m.group('email')
-                when = int(author_m.group('when'))
-                tz = int(author_m.group('tz'),10)
-
-        msg = '\n'.join(data[msg_offset:])
-
-        tz_secs = 60 * (60 * (tz/100) + (tz%100))
-
-        date = time.strftime('%Y-%m-%dT%H:%M:%S.000000Z',
-                             time.gmtime(when + tz_secs))
-
-        return (tree, parents, name, email, date, msg)
-
-    def kind_map(self, type):
+    def __map_type(self, type):
         if type is None:
             return 'none'
 
@@ -448,17 +148,50 @@ class Git (repos.Repos):
         if type == 'tree':
             return 'dir'
 
-    def svn_node_kind(self, url, rev=None):
-        mode, type, sha = self.get_path_info(url, rev)
+    def _calc_uuid(self):
+        self.uuid = self.map.get_uuid()
 
-        return self.kind_map(type)
+    def get_latest_rev(self):
+        return self.map.get_latest_rev()
+
+    def __ls_tree(self, sha1, path, options=''):
+        results = []
+
+        cmd = 'ls-tree %s "%s"' % (sha1, path)
+
+        for mode, type, sha, git_path in self.__get_git_data(cmd):
+            results.append((mode, type, sha, git_path))
+
+        return results
 
     def check_path(self, url, rev):
-        ref, path = self.parse_url(url)
+        ref, path = self.__map_url(url)
+        sha1 = self.map.find_commit(ref, rev)
 
-        if ref is None or path == '':
-            type = 'dir'
-        else:
-            type = self.svn_node_kind(url, rev)
+        if sha1 is None:
+            return 'none'
 
-        return type
+        data = self.__ls_tree(sha1, path)
+
+        if len(data) != 1:
+            return 'none'
+
+        return self.__map_type(data[0][1])
+
+    def stat(self, url, rev):
+        raise repos.UnImplemented
+
+    def ls(self, url, rev):
+        raise repos.UnImplemented
+
+    def log(self, url, target_paths, start_rev, end_rev, limit):
+        raise repos.UnImplemented
+
+    def rev_proplist(self, rev):
+        raise repos.UnImplemented
+
+    def get_props(self, url, rev, include_internal=True):
+        raise repos.UnImplemented
+
+    def get_file(self, url, rev):
+        raise repos.UnImplemented
