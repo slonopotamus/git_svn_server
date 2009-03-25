@@ -70,7 +70,7 @@ class Repos (object):
     def rev_proplist(self, rev):
         raise UnImplemented()
 
-    def get_props(self, url, rev):
+    def get_props(self, url, rev, include_internal=True):
         raise UnImplemented()
 
     def get_file(self, url, rev):
