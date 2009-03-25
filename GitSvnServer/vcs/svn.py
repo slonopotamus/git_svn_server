@@ -98,7 +98,7 @@ class Svn (repos.Repos):
                 return
 
     def get_latest_rev(self):
-        latest_rev = 0
+        latest_rev = None
 
         data = self.__get_svn_data('info %s' % self.config.location)
 
