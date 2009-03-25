@@ -224,12 +224,14 @@ class Svn (repos.Repos):
 
         props = self.__get_svn_props(cmd)
 
-        if include_internal:
-            for prop in svn_internal_props:
-                cmd = 'propget "%s" "%s"' % (prop, location)
-                value = '\n'.join(self.__get_svn_data(cmd))
-                if len(value) > 0:
-                    props.append((prop, value))
+        if not include_internal:
+            return props
+
+        for prop in svn_internal_props:
+            cmd = 'propget "%s" "%s"' % (prop, location)
+            value = '\n'.join(self.__get_svn_data(cmd))
+            if len(value) > 0:
+                props.append((prop, value))
 
         return props
 
