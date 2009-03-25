@@ -89,6 +89,16 @@ class GitMap (object):
 
         return None
 
+    def get_commits(self, ref, frm, to, order='ASC'):
+        conn = self.__connect()
+        sql = 'SELECT revision, action, sha1, origin FROM transactions WHERE ' \
+              'ref = ? AND revision >= ? AND revision <= ? ORDER BY revision ' \
+              '%s' % order
+        rows = conn.execute(sql, (ref, frm, to)).fetchall()
+        conn.close()
+
+        return rows
+
     def get_ref_rev(self, sha1):
         conn = self.__connect()
         sql = 'SELECT revision, ref FROM transactions WHERE sha1 = ?'
@@ -306,7 +316,34 @@ class Git (repos.Repos):
         return ls_data
 
     def log(self, url, target_paths, start_rev, end_rev, limit):
-        raise repos.UnImplemented
+        ref, path = self.__map_url(url)
+
+        if start_rev > end_rev:
+            frm = end_rev
+            to = start_rev
+            order = 'DESC'
+        else:
+            frm = start_rev
+            to = end_rev
+            order = 'ASC'
+
+        commits = self.map.get_commits(ref, frm, to, order)
+
+        print type(commits)
+
+        log_data = []
+        for row in commits:
+            #rev, action, sha1, origin = row
+            rev = row['revision']
+            sha1 = row['sha1']
+            changed = []
+            has_children = False
+            revprops = []
+            t, p, n, author, date, msg = self.__commit_info(sha1)
+            log_data.append((changed, rev, author, date, msg,
+                             has_children, revprops))
+
+        return log_data
 
     def rev_proplist(self, rev):
         raise repos.UnImplemented
