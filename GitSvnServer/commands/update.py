@@ -110,8 +110,10 @@ class Update(Command):
                                          gen.string(name),
                                          gen.list()))
 
+        current_names = []
         for entry in repos.ls(url, rev):
             name, kind, size, last_rev, last_author, last_date = entry
+            current_names.append(name)
             if len(path) == 0:
                 entry_path = name
             else:
@@ -122,6 +124,15 @@ class Update(Command):
                 self.update_file(entry_path, rev, token)
             else:
                 raise foo
+
+        if prev_rev is not None:
+            for entry in repos.ls(url, prev_rev):
+                name, kind, size, last_rev, last_author, last_date = entry
+                if name not in current_names:
+                    self.link.send_msg(gen.tuple('delete-entry',
+                                                 gen.string(name),
+                                                 gen.list(prev_rev),
+                                                 gen.string(token)))
 
         self.link.send_msg(gen.tuple('close-dir', gen.string(token)))
 
