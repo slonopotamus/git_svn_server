@@ -32,15 +32,11 @@ class GetDir(SimpleCommand):
         if want_contents:
             for path, kind, size, changed, by, at in repos.ls(url, rev):
                 path_url = "%s/%s" % (url, path)
-                if len(repos.get_props(path_url, rev, False)) == 0:
-                    has_props = 'false'
-                else:
-                    has_props = 'true'
-                print path_url, has_props
+                has_props = len(repos.get_props(path_url, rev, False)) == 0
                 ls_data.append(gen.list(gen.string(path),
                                         kind,
                                         size,
-                                        has_props,
+                                        gen.bool(has_props),
                                         changed,
                                         gen.list(gen.string(at)),
                                         gen.list(gen.string(by))))
