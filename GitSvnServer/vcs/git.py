@@ -2,6 +2,7 @@
 from email.utils import parseaddr
 import os
 import re
+import cStringIO as StringIO
 import sqlite3
 import time
 
@@ -36,6 +37,27 @@ class GitData (object):
         self._in.close()
         self._data.close()
         self._err.close()
+
+    def reopen(self):
+        self.close()
+        self.open()
+
+
+class FakeData (object):
+    def __init__(self, data):
+        self._data = data
+        self._string = None
+        self.open()
+
+    def open(self):
+        self._string = StringIO.StringIO(self._data)
+
+    def read(self, l=-1):
+        return self._string.read(l)
+
+    def close(self):
+        self._string.close()
+        self._string = None
 
     def reopen(self):
         self.close()
@@ -348,11 +370,25 @@ class Git (repos.Repos):
     def rev_proplist(self, rev):
         raise repos.UnImplemented
 
-    def get_props(self, url, rev, include_internal=True):
+    def get_props(self, url, rev, include_internal=True, mode=None):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
         props = []
+
+        if path != '':
+            if mode is not None:
+                data = [[mode]]
+            else:
+                data = self.__ls_tree(sha1, path)
+
+            if len(data) == 1:
+                mode = data[0][0]
+
+                if mode == '120000':
+                    props.append(('svn:special', '*'))
+                elif mode == '100755':
+                    props.append(('svn:executable', '*'))
 
         if not include_internal:
             return props
@@ -383,7 +419,15 @@ class Git (repos.Repos):
         if type != 'blob':
             return rev, [], None
 
+        props = self.get_props(url, rev, mode=mode)
+
+        print props
+
         cmd = 'cat-file blob %s' % sha
         contents = GitData(self, cmd)
 
-        return rev, [], contents
+        if mode == '120000':
+            link = 'link %s' % contents.read()
+            contents = FakeData(link)
+
+        return rev, props, contents
