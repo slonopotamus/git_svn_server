@@ -177,8 +177,11 @@ class SvnRequestHandler(StreamRequestHandler):
                     if len(cm.args) > 1:
                         self.data = cm.args[1]
         except EOF:
-            pass
-        sys.stderr.write('%d: -- CLOSE CONNECTION --\n' % os.getpid())
+            msg = 'EOF'
+        except socket.error, e:
+            errno, msg = e
+        sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
+                         (os.getpid(), msg))
 
 
 def debug(msg):
