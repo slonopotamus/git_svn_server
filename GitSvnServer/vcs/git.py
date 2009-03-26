@@ -275,6 +275,16 @@ class Git (repos.Repos):
 
         return changed, by, at
 
+    def __get_changed_paths(self, sha1, path=''):
+        cmd = 'diff-tree --name-status -r %s^ %s -- %s' % (sha1, sha1, path)
+
+        changed_files = {}
+        for line in self.__get_git_data(cmd):
+            change, path = line.split('\t', 1)
+            changed_files[path] = change
+
+        return changed_files
+
     def check_path(self, url, rev):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
@@ -351,14 +361,23 @@ class Git (repos.Repos):
 
         commits = self.map.get_commits(ref, frm, to, order)
 
-        print type(commits)
+        print path, target_paths
 
         log_data = []
         for row in commits:
             #rev, action, sha1, origin = row
             rev = row['revision']
             sha1 = row['sha1']
+
             changed = []
+            for p, c in self.__get_changed_paths(sha1, path).items():
+                for tp in target_paths:
+                    if p.startswith(tp):
+                        changed.append((p, c, None, None))
+
+            if len(changed) == 0:
+                continue
+
             has_children = False
             revprops = []
             t, p, n, author, date, msg = self.__commit_info(sha1)
