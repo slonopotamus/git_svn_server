@@ -38,7 +38,7 @@ def link_path(command, args):
     path = parse.string(args[0])
     url = parse.string(args[1])
     rev = int(args[2])
-    start_empty = args[3].lower() == 'true'
+    start_empty = parse.bool(args[3])
 
     lock_token = None
     if len(args) > 4:
