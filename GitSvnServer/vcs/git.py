@@ -5,8 +5,10 @@ import re
 import cStringIO as StringIO
 import sqlite3
 import time
+import uuid
 
 from GitSvnServer import repos
+from GitSvnServer.errors import *
 
 
 git_binary = "git"
@@ -28,10 +30,23 @@ class GitData (object):
 
         (self._in, self._data, self._err) = os.popen3(self._cmd)
 
+        self._read = 0
+
         os.chdir(cwd)
 
+    def tell(self):
+        return self._read
+
     def read(self, l=-1):
-        return self._data.read(l)
+        data = self._data.read(l)
+        self._read += len(data)
+        return data
+
+    def write(self, data):
+        self._in.write(data)
+
+    def close_stdin(self):
+        self._in.close()
 
     def close(self):
         self._in.close()
@@ -63,6 +78,42 @@ class FakeData (object):
         self.close()
         self.open()
 
+
+class GitFile (object):
+    def __init__(self, commit, path):
+        self.commit = commit
+        self.path = path
+        cmd = '--bare hash-object -w --stdin'
+        self.hash_object = GitData(commit.repos, cmd)
+
+    def write(self, data):
+        self.hash_object.write(data)
+
+    def close(self):
+        self.hash_object.close_stdin()
+        sha1 = self.hash_object.read().strip()
+        self.hash_object.close()
+        self.commit.file_complete(self.path, sha1)
+
+class GitCommit (object):
+    def __init__(self, repos, ref, parent, prefix):
+        self.repos = repos
+        self.ref = ref
+        self.parent = parent
+        self.prefix = prefix
+        self.files = {}
+
+    def modify_file(self, path, rev=None):
+        if rev is not None:
+            sha1 = self.repos.map.find_commit(self.ref, rev)
+            if self.repos._path_changed(sha1, self.parent, path):
+                raise PathChanged(path)
+        if len(self.prefix) > 0:
+            path = '/'.join((self.prefix, path))
+        return GitFile(self, path)
+
+    def file_complete(self, path, sha1):
+        self.files[path] = sha1
 
 class GitMap (object):
     def __init__(self, repo_location):
@@ -285,6 +336,12 @@ class Git (repos.Repos):
 
         return changed_files
 
+    def _path_changed(self, sha1, sha2, path):
+        cmd = 'diff-tree --name-only %s %s -- %s' % (sha1, sha2, path)
+        changes = self.__get_git_data(cmd)
+
+        return len(changes) != 0
+
     def check_path(self, url, rev):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
@@ -440,8 +497,6 @@ class Git (repos.Repos):
 
         props = self.get_props(url, rev, mode=mode)
 
-        print props
-
         cmd = 'cat-file blob %s' % sha
         contents = GitData(self, cmd)
 
@@ -450,3 +505,49 @@ class Git (repos.Repos):
             contents = FakeData(link)
 
         return rev, props, contents
+
+    def start_commit(self, url):
+        ref, path = self.__map_url(url)
+
+        cmd = '--bare rev-parse %s' % ref
+        parent = self.__get_git_data(cmd)[0]
+
+        return GitCommit(self, ref, parent, path)
+
+    def complete_commit(self, commit, msg):
+        orig_index_file = os.environ.get('GIT_INDEX_FILE', '')
+        os.environ['GIT_INDEX_FILE'] = 'svnserver/tmp-index'
+
+        cmd = '--bare read-tree %s' % commit.parent
+        self.__get_git_data(cmd)
+
+        cmd = '--bare update-index --add --index-info'
+        ui = GitData(self, cmd)
+        for path, sha in commit.files.items():
+            ui.write('100644 %s\t%s\n' % (sha, path))
+        ui.close()
+
+        cmd = '--bare write-tree'
+        tree = self.__get_git_data(cmd)[0]
+
+        cmd = '--bare commit-tree %s -p %s' % (tree, commit.parent)
+        ct = GitData(self, cmd)
+        ct.write(msg)
+        ct.close_stdin()
+        commit_sha = ct.read()
+        ct.close()
+
+        ref = 'refs/svnserver/%s' % uuid.uuid4()
+        cmd = '--bare update-ref -m "svn commit" %s %s' % (ref, commit_sha)
+        self.__get_git_data(cmd)
+
+        os.environ['GIT_INDEX_FILE'] = orig_index_file
+
+        cmd = 'push . %s:%s' % (ref, commit.ref)
+        self.__get_git_data(cmd)
+
+        return None, ""
+
+    def abort_commit(self, commit):
+        print "abort commit ..."
+        pass

@@ -76,6 +76,15 @@ class Repos (object):
     def get_file(self, url, rev):
         raise UnImplemented()
 
+    def start_commit(self):
+        raise UnImplemented()
+
+    def complete_commit(self, commit, msg):
+        raise UnImplemented()
+
+    def abort_commit(self, commit):
+        raise UnImplemented()
+
 
 repos_list = {}
 

@@ -181,8 +181,6 @@ def process(link):
     editor = msg[0]
     args = msg[1]
 
-    print "editor", editor, args
-
     if editor not in edit_cmds:
         command.log_edit_error(210001, "Unknown command '%s'" % editor)
         return

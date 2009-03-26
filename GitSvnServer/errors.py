@@ -13,3 +13,6 @@ class ChangeMode(Exception):
 
 class BadProtoVersion(Exception):
     pass
+
+class PathChanged(Exception):
+    pass
