@@ -73,6 +73,9 @@ class Repos (object):
     def get_props(self, url, rev, include_internal=True):
         raise UnImplemented()
 
+    def path_changed(self, url, rev, prev_rev):
+        raise UnImplemented()
+
     def get_file(self, url, rev):
         raise UnImplemented()
 

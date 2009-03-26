@@ -147,7 +147,7 @@ class Update(Command):
         if prev_rev is None:
             prev_pl = []
             prev_contents = None
-        elif prev_rev == rev:
+        elif prev_rev == rev or not repos.path_changed(url, rev, prev_rev):
             return
         else:
             prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev)

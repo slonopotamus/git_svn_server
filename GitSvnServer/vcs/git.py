@@ -478,6 +478,13 @@ class Git (repos.Repos):
 
         return props
 
+    def path_changed(self, url, rev, prev_rev):
+        ref, path = self.__map_url(url)
+        old_sha = self.map.find_commit(ref, rev)
+        new_sha = self.map.find_commit(ref, prev_rev)
+
+        return self._path_changed(old_sha, new_sha, path)
+
     def get_file(self, url, rev):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
