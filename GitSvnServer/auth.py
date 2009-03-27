@@ -12,8 +12,10 @@ class AuthFailure(Exception):
     pass
 
 class AuthMethod:
-    def __init__(self, link):
+    def __init__(self, link, auth_db):
         self.link = link
+        self.auth_db = auth_db
+        self.username = None
 
     def get_response(self):
         return self.link.read_str()
@@ -43,29 +45,43 @@ class CramMd5Auth(AuthMethod):
         print resp
         username, pass_hash = resp.split()
 
-        if pass_hash != hmac.new('test', msg_id).hexdigest():
+        password = self.auth_db.get_password(username)
+        if password is None:
+            raise AuthFailure(gen.string('unknown user'))
+
+        if pass_hash != hmac.new(password, msg_id).hexdigest():
             raise AuthFailure(gen.string('incorrect password'))
+
+        self.username = username
 
 auths = {
     'CRAM-MD5' : CramMd5Auth,
 }
 
 def auth(link):
-    auth_list = auths.keys()
-    link.send_msg(gen.success(gen.list(*auth_list), gen.string('test')))
+    auth_db = link.repos.get_auth()
 
-    msg = link.read_msg()
+    realm = auth_db.get_realm()
+    auth_list = auth_db.get_auth_list()
 
-    auth_type = parse.msg(msg)[0]
+    if auth_list is None:
+        auth_list = ['CRAM-MD5']
+    else:
+        for auth in auth_list:
+            if auth not in auths:
+                auth_list.remove(auth)
 
-    if auth_type not in auths:
-        link.send_msg(gen.failure(gen.string('unknown auth type: %s' \
-                                             % auth_type)))
-        return None
+    link.send_msg(gen.success(gen.list(*auth_list), gen.string(realm)))
 
-    auth = auths[auth_type](link)
+    while True:
+        auth_type = parse.msg(link.read_msg())[0]
 
-    if not auth.do_auth():
-        return None
+        if auth_type not in auths:
+            link.send_msg(gen.failure(gen.string('unknown auth type: %s' \
+                                                 % auth_type)))
+            continue
 
-    return auth
+        auth = auths[auth_type](link, auth_db)
+
+        if auth.do_auth():
+            return auth

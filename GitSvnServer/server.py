@@ -202,9 +202,11 @@ class SvnRequestHandler(StreamRequestHandler):
                     elif self.mode == 'auth':
                         if self.auth is None:
                             self.auth = auth.auth(self)
+                            self.repos.set_username(self.auth.username)
                             self.mode = 'announce'
                         else:
                             self.auth.reauth()
+                            self.repos.set_username(self.auth.username)
                             self.mode = self.data
 
                         if self.auth is None:

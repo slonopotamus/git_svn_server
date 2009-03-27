@@ -42,7 +42,7 @@ def update_ref(ref, old, new):
 def main():
     global cursor
 
-    conn = sqlite3.connect('svnserver/map', isolation_level='IMMEDIATE')
+    conn = sqlite3.connect('svnserver/db', isolation_level='IMMEDIATE')
     cursor = conn.cursor()
 
     for line in sys.stdin:

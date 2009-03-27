@@ -39,6 +39,10 @@ class Repos (object):
         self.uuid = None
         self.base_url = 'svn://%s/%s' % (host, base)
         self.config = config
+        self.username = None
+
+    def set_username(self, username):
+        self.username = username
 
     def _calc_uuid(self):
         raise UnImplemented()

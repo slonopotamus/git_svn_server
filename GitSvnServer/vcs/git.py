@@ -15,6 +15,51 @@ git_binary = "git"
 verbose_mode = False
 
 
+class GitDb (object):
+    def __init__(self, git, repo_location):
+        self.git = git
+        self.map_file = os.path.join(repo_location, 'svnserver', 'db')
+
+    def connect(self):
+        conn = sqlite3.connect(self.map_file)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def execute(self, sql, *args):
+        conn = self.connect()
+        results = conn.execute(sql, args).fetchall()
+        conn.close()
+        return results
+
+
+class GitAuth (GitDb):
+    def get_realm(self):
+        rows = self.execute('SELECT value FROM meta WHERE name = "realm"')
+        if len(rows) == 0:
+            return self.git.base_url
+        return rows[0]['value']
+
+    def get_auth_list(self):
+        rows = self.execute('SELECT value FROM meta WHERE name = "auths"')
+        if len(rows) == 0:
+            return None
+        return [x.strip() for x in rows[0]['value'].split()]
+
+    def get_user_details(self, username):
+        sql = 'SELECT name, email FROM users WHERE username = ?'
+        rows = self.execute(sql, username)
+        if len(rows) == 0:
+            return None, None
+        return rows[0]['name'], rows[0]['email']
+
+    def get_password(self, username):
+        sql = 'SELECT password FROM users WHERE username = ?'
+        rows = self.execute(sql, username)
+        if len(rows) == 0:
+            return None
+        return rows[0]['password']
+
+
 class GitData (object):
     def __init__(self, repos, command_string):
         self._cmd = "%s %s" % (git_binary, command_string)
@@ -95,6 +140,7 @@ class GitFile (object):
         self.hash_object.close()
         self.commit.file_complete(self.path, sha1)
 
+
 class GitCommit (object):
     def __init__(self, repos, ref, parent, prefix):
         self.repos = repos
@@ -115,29 +161,16 @@ class GitCommit (object):
     def file_complete(self, path, sha1):
         self.files[path] = sha1
 
-class GitMap (object):
-    def __init__(self, repo_location):
-        self.map_file = os.path.join(repo_location, 'svnserver', 'map')
 
-    def __connect(self):
-        conn = sqlite3.connect(self.map_file)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def __execute(self, sql, *args):
-        conn = self.__connect()
-        results = conn.execute(sql, args).fetchall()
-        conn.close()
-        return results
-
+class GitMap (GitDb):
     def get_uuid(self):
-        rows = self.__execute('SELECT value FROM meta WHERE name = "uuid"')
+        rows = self.execute('SELECT value FROM meta WHERE name = "uuid"')
         if len(rows) == 0:
             return None
         return rows[0]['value']
 
     def get_latest_rev(self):
-        conn = self.__connect()
+        conn = self.connect()
         sql = 'SELECT revision FROM transactions ORDER BY revision DESC'
         row = conn.execute(sql).fetchone()
         conn.close()
@@ -146,7 +179,7 @@ class GitMap (object):
         return int(row['revision'])
 
     def find_commit(self, ref, rev):
-        conn = self.__connect()
+        conn = self.connect()
         sql = 'SELECT revision, action, sha1 FROM transactions WHERE ref = ? ' \
               'AND revision <= ? ORDER BY revision DESC'
         row = conn.execute(sql, (ref, rev)).fetchone()
@@ -163,7 +196,7 @@ class GitMap (object):
         return None
 
     def get_commits(self, ref, frm, to, order='ASC'):
-        conn = self.__connect()
+        conn = self.connect()
         sql = 'SELECT revision, action, sha1, origin FROM transactions WHERE ' \
               'ref = ? AND revision >= ? AND revision <= ? ORDER BY revision ' \
               '%s' % order
@@ -173,7 +206,7 @@ class GitMap (object):
         return rows
 
     def get_ref_rev(self, sha1):
-        conn = self.__connect()
+        conn = self.connect()
         sql = 'SELECT revision, ref FROM transactions WHERE sha1 = ?'
         row = conn.execute(sql, (sha1,)).fetchone()
         conn.close()
@@ -189,7 +222,8 @@ class Git (repos.Repos):
 
     def __init__(self, host, base, config):
         super(Git, self).__init__(host, base, config)
-        self.map = GitMap(config.location)
+        self.map = GitMap(self, config.location)
+        self.auth_db = GitAuth(self, self.config.location)
         self.trunk_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
                                    (self.base_url, config.trunk))
         branches = config.branches.replace('$(branch)', '(?P<branch>[^/]+)')
@@ -523,7 +557,20 @@ class Git (repos.Repos):
 
     def complete_commit(self, commit, msg):
         orig_index_file = os.environ.get('GIT_INDEX_FILE', '')
+        orig_author = os.environ.get('GIT_AUTHOR_NAME', ''), \
+                      os.environ.get('GIT_AUTHOR_EMAIL', '')
+        orig_committer = os.environ.get('GIT_COMMITTER_NAME', ''), \
+                         os.environ.get('GIT_COMMITTER_EMAIL', '')
+
         os.environ['GIT_INDEX_FILE'] = 'svnserver/tmp-index'
+
+        if self.username is not None:
+            name, email = self.auth_db.get_user_details(self.username)
+
+            os.environ['GIT_AUTHOR_NAME'] = name
+            os.environ['GIT_AUTHOR_EMAIL'] = email
+            os.environ['GIT_COMMITTER_NAME'] = name
+            os.environ['GIT_COMMITTER_EMAIL'] = email
 
         cmd = '--bare read-tree %s' % commit.parent
         self.__get_git_data(cmd)
@@ -548,8 +595,6 @@ class Git (repos.Repos):
         cmd = '--bare update-ref -m "svn commit" %s %s' % (ref, commit_sha)
         self.__get_git_data(cmd)
 
-        os.environ['GIT_INDEX_FILE'] = orig_index_file
-
         cmd = 'push . %s:%s' % (ref, commit.ref)
         self.__get_git_data(cmd)
 
@@ -559,8 +604,17 @@ class Git (repos.Repos):
         ref, rev = self.map.get_ref_rev(commit_sha)
         tree, parents, name, email, date, msg = self.__commit_info(commit_sha)
 
+        os.environ['GIT_INDEX_FILE'] = orig_index_file
+        os.environ['GIT_AUTHOR_NAME'] = orig_author[0]
+        os.environ['GIT_AUTHOR_EMAIL'] = orig_author[0]
+        os.environ['GIT_COMMITTER_NAME'] = orig_committer[0]
+        os.environ['GIT_COMMITTER_EMAIL'] = orig_committer[0]
+
         return rev, date, email, ""
 
     def abort_commit(self, commit):
         print "abort commit ..."
         pass
+
+    def get_auth(self):
+        return self.auth_db

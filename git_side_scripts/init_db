@@ -12,6 +12,14 @@ CREATE TABLE meta (
   value VARCHAR);
 """
 
+users = """
+CREATE TABLE users (
+  username VARCHAR PRIMARY KEY,
+  name VARCHAR,
+  email VARCHAR,
+  password VARCHAR);
+"""
+
 transactions = """
 CREATE TABLE transactions (
   revision INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,10 +34,11 @@ def main():
     if not os.path.exists('svnserver'):
         os.mkdir('svnserver')
 
-    conn = sqlite3.connect('svnserver/map', isolation_level='IMMEDIATE')
+    conn = sqlite3.connect('svnserver/db', isolation_level='IMMEDIATE')
 
     # Create tables
     conn.execute(meta)
+    conn.execute(users)
     conn.execute(transactions)
 
     # Create a UUID for this repository
