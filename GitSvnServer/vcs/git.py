@@ -553,6 +553,9 @@ class Git (repos.Repos):
         cmd = 'push . %s:%s' % (ref, commit.ref)
         self.__get_git_data(cmd)
 
+        cmd = '--bare update-ref -d %s %s' % (ref, commit_sha)
+        self.__get_git_data(cmd)
+
         ref, rev = self.map.get_ref_rev(commit_sha)
         tree, parents, name, email, date, msg = self.__commit_info(commit_sha)
 
