@@ -5,6 +5,19 @@ import hmac
 import generate as gen
 import parse
 
+class DummyAuthDb (object):
+    def __init__(self, repos):
+        self.repos = repos
+
+    def get_realm(self):
+        return self.repos.base_url
+
+    def get_auth_list(self):
+        return None
+
+    def get_password(self, username):
+        return ''
+
 class Needed(Exception):
     pass
 
