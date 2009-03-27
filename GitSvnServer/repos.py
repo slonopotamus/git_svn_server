@@ -92,6 +92,9 @@ class Repos (object):
     def abort_commit(self, commit):
         raise UnImplemented()
 
+    def get_auth(self):
+        raise UnImplemented()
+
 
 repos_list = {}
 
