@@ -56,6 +56,10 @@ class SvnServer(ForkingTCPServer):
             self.log = None
 
         if self.options.foreground or self.options.debug:
+            if self.options.pidfile is not None:
+                pf = open(self.options.pidfile, 'w')
+                pf.write('%d\n' % os.getpid())
+                pf.close()
             return self.run()
 
         pid = os.fork()

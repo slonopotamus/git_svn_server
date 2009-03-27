@@ -46,8 +46,7 @@ def main():
                       help='File to log to if running as daemon.')
 
     parser.add_option('', '--pidfile', default=None, metavar='PIDFILE',
-                      help='Store the pid of the daemon process in PIDFILE if '
-                      'one is started.')
+                      help='Store the pid of the server process in PIDFILE.')
 
     options, args = parser.parse_args()
 
