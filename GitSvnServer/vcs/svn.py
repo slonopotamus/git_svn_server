@@ -2,6 +2,7 @@
 import os
 
 from GitSvnServer import repos
+from GitSvnServer.auth import DummyAuthDb
 
 import xml.etree.cElementTree as ElementTree
 
@@ -249,3 +250,6 @@ class Svn (repos.Repos):
         contents = SvnData(cmd)
 
         return rev, props, contents
+
+    def get_auth(self):
+        return DummyAuthDb(self)
