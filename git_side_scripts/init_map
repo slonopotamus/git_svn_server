@@ -1,0 +1,43 @@
+#!/usr/bin/python
+
+
+import os
+import sqlite3
+import uuid
+
+
+meta = """
+CREATE TABLE meta (
+  name VARCHAR PRIMARY KEY,
+  value VARCHAR);
+"""
+
+transactions = """
+CREATE TABLE transactions (
+  revision INTEGER PRIMARY KEY AUTOINCREMENT,
+  action VARCHAR,
+  ref VARCHAR,
+  sha1 VARCHAR unique,
+  origin VARCHAR);
+"""
+
+
+def main():
+    if not os.path.exists('svnserver'):
+        os.mkdir('svnserver')
+
+    conn = sqlite3.connect('svnserver/map', isolation_level='IMMEDIATE')
+
+    # Create tables
+    conn.execute(meta)
+    conn.execute(transactions)
+
+    # Create a UUID for this repository
+    conn.execute("INSERT INTO meta (name, value ) VALUES(?, ?)",
+                 ('uuid', str(uuid.uuid4())))
+
+    conn.commit()
+    conn.close()
+
+if __name__ == "__main__":
+    main()
