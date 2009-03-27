@@ -4,8 +4,26 @@ import GitSvnServer
 import optparse
 
 
+version = "pre-alpha"
+
+
+description = \
+"""This program attempts to server one or more git repositories using the
+Subversion svn:// protocol.
+"""
+
+epilog = \
+"""WARNING: Currently there is a lot that doesn't work at all, doesn't work
+properly, or doesn't handle errors.  Anyone who configures this program to
+serve a git repository that isn't disposable is possibly insane, and certainly
+on the own.
+"""
+
+
 def main():
-    parser = optparse.OptionParser()
+    parser = optparse.OptionParser(description = description,
+                                   epilog = epilog,
+                                   version = version)
 
     parser.add_option('-c', '--config', metavar='CONFIG', default=None,
                       help='Load configuration from CONFIG')
