@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
 import os
+import re
 from SocketServer import *
+import signal
 import sys
 
 import auth
@@ -24,11 +26,62 @@ if socket.has_ipv6:
 MAX_DBG_MLEN = 1000
 verbose = False
 
+ipv4_re = re.compile(r'\d{1,3}(\.\d{1,3}){3,3}')
+def is_ipv4_addr(ip):
+    return ipv4_re.match(ip) is not None
+
 class SvnServer(ForkingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
-    def __init__(self, address=(all_interfaces, 3690)):
+    def __init__(self, log=None, ip=None, port=3690):
+        self.log = log
+        if ip is None:
+            ip = all_interfaces
+        elif socket.has_ipv6 and is_ipv4_addr(ip):
+            ip = '::ffff:%s' % ip
+        if socket.has_ipv6:
+            address = (ip, port, 0, 0)
+        else:
+            address = (ip, port)
         ForkingTCPServer.__init__(self, address, SvnRequestHandler)
+
+    def start(self, foreground=False, debug=False):
+        if debug:
+            self.log = None
+
+        if foreground or debug:
+            return self.run()
+
+        if os.fork() == 0:
+            self.run()
+            os._exit(0)
+
+    def stop(self, *args):
+        print 'stopped serving'
+        if self.log is not None:
+            sys.stdout.flush()
+            sys.stdout.close()
+        sys.exit(0)
+
+    def run(self):
+        signal.signal(signal.SIGTERM, self.stop)
+
+        if self.log is not None:
+            sys.stdout = open(self.log, 'a')
+            sys.stderr = sys.stdout
+
+        print 'start serving'
+
+        try:
+            self.serve_forever()
+        except KeyboardInterrupt:
+            pass
+
+        print 'stopped serving'
+
+        if self.log is not None:
+            sys.stdout.flush()
+            sys.stdout.close()
 
 
 class SvnRequestHandler(StreamRequestHandler):
@@ -40,6 +93,9 @@ class SvnRequestHandler(StreamRequestHandler):
         self.data = None
         self.url = None
         self.command = None
+        if server.log is not None:
+            sys.stdout = open(server.log, 'a')
+            sys.stderr = sys.stdout
         StreamRequestHandler.__init__(self, request, client_address, server)
 
     def set_mode(self, mode):
@@ -132,6 +188,7 @@ class SvnRequestHandler(StreamRequestHandler):
         sys.stderr.write('%d: -- NEW CONNECTION --\n' % os.getpid())
         try:
             while True:
+                sys.stdout.flush()
                 try:
                     if self.mode == 'connect':
                         self.url, self.client_caps, self.repos = \
@@ -182,6 +239,7 @@ class SvnRequestHandler(StreamRequestHandler):
             errno, msg = e
         sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
                          (os.getpid(), msg))
+        sys.stderr.flush()
 
 
 def debug(msg):
