@@ -55,7 +55,6 @@ class CramMd5Auth(AuthMethod):
         self.link.send_msg(gen.tuple('step', gen.string(msg_id)))
 
         resp = self.get_response()
-        print resp
         username, pass_hash = resp.split()
 
         password = self.auth_db.get_password(username)
@@ -65,6 +64,7 @@ class CramMd5Auth(AuthMethod):
         if pass_hash != hmac.new(password, msg_id).hexdigest():
             raise AuthFailure(gen.string('incorrect password'))
 
+        print "Authenticated:", username
         self.username = username
 
 auths = {
