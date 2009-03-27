@@ -174,6 +174,14 @@ class Commit (Command):
             self.link.send_msg(gen.error(1, "aborted"))
             return
 
-        rev, error = repos.complete_commit(self.commit, msg)
+        rev, date, author, error = repos.complete_commit(self.commit, msg)
 
-        self.link.send_msg(gen.error(1, "not implemented"))
+        print rev, date, author, error
+
+        if rev is None:
+            self.link.send_msg(gen.error(1, "vcs error: %s" % error))
+        else:
+            self.link.send_msg(gen.list(rev,
+                                        gen.list(gen.string(date)),
+                                        gen.list(gen.string(author)),
+                                        gen.list()))

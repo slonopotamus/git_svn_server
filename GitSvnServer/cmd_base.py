@@ -1,3 +1,4 @@
+import generate as gen
 from errors import *
 
 commands = {}
@@ -128,6 +129,7 @@ class Command:
         raise NotImplementedError()
 
     def edit_finish(self):
+        self.link.send_msg(gen.success())
         raise ChangeMode('auth', 'command')
 
     def edit_abort(self):

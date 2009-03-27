@@ -179,7 +179,7 @@ class GitMap (object):
         conn.close()
 
         if row is None:
-            return None
+            return None, None
 
         return row['ref'], int(row['revision'])
 
@@ -541,7 +541,7 @@ class Git (repos.Repos):
         ct = GitData(self, cmd)
         ct.write(msg)
         ct.close_stdin()
-        commit_sha = ct.read()
+        commit_sha = ct.read().strip()
         ct.close()
 
         ref = 'refs/svnserver/%s' % uuid.uuid4()
@@ -553,7 +553,10 @@ class Git (repos.Repos):
         cmd = 'push . %s:%s' % (ref, commit.ref)
         self.__get_git_data(cmd)
 
-        return None, ""
+        ref, rev = self.map.get_ref_rev(commit_sha)
+        tree, parents, name, email, date, msg = self.__commit_info(commit_sha)
+
+        return rev, date, email, ""
 
     def abort_commit(self, commit):
         print "abort commit ..."
