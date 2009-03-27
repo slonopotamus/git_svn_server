@@ -45,15 +45,16 @@ def main():
     parser.add_option('-l', '--log', default='svnserver.log',
                       help='File to log to if running as daemon.')
 
+    parser.add_option('', '--pidfile', default=None, metavar='PIDFILE',
+                      help='Store the pid of the daemon process in PIDFILE if '
+                      'one is started.')
+
     options, args = parser.parse_args()
 
     GitSvnServer.config.load(options.config)
 
-    server = GitSvnServer.SvnServer(log = options.log,
-                                    ip = options.ip,
-                                    port = options.port)
-    server.start(foreground = options.foreground,
-                 debug = options.debug)
+    server = GitSvnServer.SvnServer(options)
+    server.start()
 
 
 if __name__ == "__main__":

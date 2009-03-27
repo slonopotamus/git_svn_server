@@ -30,31 +30,43 @@ ipv4_re = re.compile(r'\d{1,3}(\.\d{1,3}){3,3}')
 def is_ipv4_addr(ip):
     return ipv4_re.match(ip) is not None
 
+def get_address(ip, port):
+    if ip is None:
+        ip = all_interfaces
+    elif socket.has_ipv6 and is_ipv4_addr(ip):
+        ip = '::ffff:%s' % ip
+    if socket.has_ipv6:
+        address = (ip, port, 0, 0)
+    else:
+        address = (ip, port)
+    return address
+    
+
 class SvnServer(ForkingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
-    def __init__(self, log=None, ip=None, port=3690):
-        self.log = log
-        if ip is None:
-            ip = all_interfaces
-        elif socket.has_ipv6 and is_ipv4_addr(ip):
-            ip = '::ffff:%s' % ip
-        if socket.has_ipv6:
-            address = (ip, port, 0, 0)
-        else:
-            address = (ip, port)
+    def __init__(self, options):
+        self.options = options
+        self.log = options.log
+        address = get_address(options.ip, options.port)
         ForkingTCPServer.__init__(self, address, SvnRequestHandler)
 
-    def start(self, foreground=False, debug=False):
-        if debug:
+    def start(self):
+        if self.options.debug:
             self.log = None
 
-        if foreground or debug:
+        if self.options.foreground or self.options.debug:
             return self.run()
 
-        if os.fork() == 0:
+        pid = os.fork()
+        if pid == 0:
             self.run()
             os._exit(0)
+
+        if self.options.pidfile is not None:
+            pf = open(self.options.pidfile, 'w')
+            pf.write('%d\n' % pid)
+            pf.close()
 
     def stop(self, *args):
         print 'stopped serving'
@@ -93,6 +105,7 @@ class SvnRequestHandler(StreamRequestHandler):
         self.data = None
         self.url = None
         self.command = None
+        self.options = server.options
         if server.log is not None:
             sys.stdout = open(server.log, 'a')
             sys.stderr = sys.stdout
