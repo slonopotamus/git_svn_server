@@ -1,6 +1,8 @@
 
 import os
 import signal
+import socket
+import sys
 import tempfile
 import time
 
@@ -8,9 +10,14 @@ from CleverSheep.Test import ProcMan
 from CleverSheep.Test.Tester import *
 
 
+base_dir = os.path.abspath(os.path.dirname(sys.argv[0]))
+scratch_dir = os.path.join(base_dir, 'scratch')
+git_svnserver = os.path.join(base_dir, '..', 'git-svnserver')
+
+
 def start_server(config, pidfile, ip, port):
-    cmd = '../git-svnserver -c %s -d -i %s -p %d --pidfile %s' % \
-          (config, ip, port, pidfile)
+    cmd = '%s -c %s -d -i %s -p %d --pidfile %s' % \
+          (git_svnserver, config, ip, port, pidfile)
     print cmd
     return ProcMan.run_in_xterm('git-svnserver', cmd)
 
@@ -36,7 +43,10 @@ def stop_server(pidfile, server):
 
 
 def create_new_scratch():
-    pass
+    if not os.path.exists(scratch_dir):
+        os.makedirs(scratch_dir)
+    scratch = tempfile.mkdtemp(dir=scratch_dir)
+    return scratch
 
 
 def clean_scratch(scratch):
@@ -49,6 +59,7 @@ class TestSuite (Suite):
 
     def __init__(self):
         self.server = None
+        self.scratch = None
         super(TestSuite, self).__init__()
 
     def start_server(self, config):
@@ -71,5 +82,21 @@ class TestSuite (Suite):
         self.scratch = create_new_scratch()
 
     def tearDown(self):
-        clean_scratch(self.scratch)
+        if self.scratch is not None:
+            clean_scratch(self.scratch)
+            self.scratch = None
+
         self.stop_server()
+
+        for attrib in ['ip', 'port']:
+            if attrib in self.__dict__:
+                del self.__dict__[attrib]
+
+    def connect_to_server(self, ip=None, port=None):
+        if ip is None:
+            ip = self.ip
+        if port is None:
+            port = self.port
+        s = socket.socket()
+        error = s.connect_ex((ip, port))
+        return s, error
