@@ -15,7 +15,7 @@ class SimpleTest (TestSuite):
         s, error = self.connect_to_server()
         failIfEqual(0, error)
 
-        self.start_server('../test.cfg')
+        self.start_server()
 
         s, error = self.connect_to_server()
         failUnlessEqual(0, error)
@@ -29,7 +29,7 @@ class SimpleTest (TestSuite):
         s, error = self.connect_to_server()
         failIfEqual(0, error)
 
-        self.start_server('../test.cfg')
+        self.start_server()
 
         s, error = self.connect_to_server(ip=orig_ip)
         failIfEqual(0, error)
@@ -46,7 +46,7 @@ class SimpleTest (TestSuite):
         s, error = self.connect_to_server()
         failIfEqual(0, error)
 
-        self.start_server('../test.cfg')
+        self.start_server()
 
         s, error = self.connect_to_server(port=orig_port)
         failIfEqual(0, error)
