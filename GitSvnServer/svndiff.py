@@ -1,5 +1,6 @@
 
 import sys
+import zlib
 
 
 def encode_int(i):
@@ -74,13 +75,14 @@ def error(msg):
 header_order = ['src_offset', 'src_len', 'tgt_len', 'instruct_len',
                 'new_data_len']
 class Window (object):
-    def __init__(self):
+    def __init__(self, version):
         self.header = []
         for i in header_order:
             self.header.append(None)
         self.next_header = 0
         self.instruction_data = ""
         self.new_data = ""
+        self.version = version
 
     def h(self, name):
         return self.header[header_order.index(name)]
@@ -120,6 +122,24 @@ class Window (object):
 
         return data
 
+    def decode_data(self, idata):
+        if self.version == 0 or len(idata) == 0:
+            return idata
+
+        orig_len, data = get_svndiff_int(idata)
+
+        if len(data) == orig_len:
+            return data
+
+        decomp_data = zlib.decompress(data)
+
+        if len(decomp_data) != orig_len:
+            error('zlib decompress failed!')
+            # TODO: need to propogate this error up in a nicer manner
+            sys.exit(1)
+
+        return decomp_data
+
     def apply(self, source, target):
         src_offset = self.h('src_offset')
         src_len = self.h('src_len')
@@ -127,8 +147,10 @@ class Window (object):
         instruct_len = self.h('instruct_len')
         new_data_len = self.h('new_data_len')
 
-        instructions = get_svndiff_instructions(self.instruction_data)
-        new_data = self.new_data
+        instruction_data = self.decode_data(self.instruction_data)
+        instructions = get_svndiff_instructions(instruction_data)
+
+        new_data = self.decode_data(self.new_data)
 
         if source.tell() < src_offset:
             source.read(src_offset - source.tell())
@@ -158,7 +180,8 @@ class Window (object):
         if len(target_view) != tgt_len:
             error('Failed to apply svndiff correctly')
             error('  length should be %d, not %d' % (tgt_len, len(target_view)))
-            return ""
+            # TODO: we ought to raise this as an error somehow, not die ...
+            sys.exit(1)
 
         target.write(target_view)
 
@@ -169,14 +192,20 @@ class Decoder (object):
         self.seen_header = False
         self.data = ""
         self.window = None
+        self.diffversion = 0
 
     def check_header(self):
         if self.data[0:3] != 'SVN':
             error('Invalid svndiff data')
 
         version = ord(self.data[3])
-        if version > 0:
+        if version > 1:
             error('Invalid svndiff version: %d' % version)
+            # TODO: we ought to raise this as an error somehow, not die ...
+            sys.exit(1)
+
+        self.diffversion = version
+        print "svndiff%d" % version
 
         self.data = self.data[4:]
         self.seen_header = True
@@ -186,11 +215,17 @@ class Decoder (object):
 
         self.data += data
 
+        if len(self.data) == 0:
+            return
+
         if not self.seen_header:
             self.check_header()
 
+        if len(self.data) == 0:
+            return
+
         if self.window is None:
-            self.window = Window()
+            self.window = Window(self.diffversion)
 
         while len(self.data) != old_len:
             self.data = self.window.feed(self.data)

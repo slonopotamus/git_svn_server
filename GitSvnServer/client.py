@@ -20,7 +20,7 @@ def parse_client_greeting(msg_str):
 def connect(link):
     link.send_msg(gen.success(2, 2,
                               gen.list('ANONYMOUS'),
-                              gen.list('edit-pipeline')))
+                              gen.list('edit-pipeline', 'svndiff1')))
 
     client_resp = link.read_msg()
 
