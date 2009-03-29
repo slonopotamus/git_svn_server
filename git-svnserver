@@ -48,6 +48,16 @@ def main():
     parser.add_option('', '--pidfile', default=None, metavar='PIDFILE',
                       help='Store the pid of the server process in PIDFILE.')
 
+    parser.add_option('-m', '--show-messages', default=False,
+                      action='store_true',
+                      help='Include the contents of messages sent and received '
+                      'in the debug/log output.')
+
+    parser.add_option('', '--max-message-debug-len', default=0, type='int',
+                      metavar='LENGTH',
+                      help='The maximum length of a message that should be '
+                      'written to the log (longer messages will be truncated)')
+
     options, args = parser.parse_args()
 
     GitSvnServer.config.load(options.config)

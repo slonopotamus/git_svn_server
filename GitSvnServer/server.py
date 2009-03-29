@@ -23,9 +23,6 @@ if socket.has_ipv6:
     addr_family = socket.AF_INET6
     all_interfaces = "::"
 
-MAX_DBG_MLEN = 1000
-verbose = False
-
 ipv4_re = re.compile(r'\d{1,3}(\.\d{1,3}){3,3}')
 def is_ipv4_addr(ip):
     return ipv4_re.match(ip) is not None
@@ -115,6 +112,18 @@ class SvnRequestHandler(StreamRequestHandler):
             sys.stderr = sys.stdout
         StreamRequestHandler.__init__(self, request, client_address, server)
 
+    def debug(self, msg, send=False):
+        if not self.options.show_messages:
+            return
+        d = '<'
+        if send:
+            d = '>'
+        max_dbg_mlen = self.options.max_message_debug_len
+        if max_dbg_mlen > 0 and len(msg) > max_dbg_mlen:
+            sys.stderr.write('%d%s%s...\n' % (os.getpid(), d, msg[:max_dbg_mlen]))
+        else:
+            sys.stderr.write('%d%s%s\n' % (os.getpid(), d, msg))
+
     def set_mode(self, mode):
         if mode not in ['connect', 'auth', 'announce',
                         'command', 'editor', 'report']:
@@ -147,7 +156,7 @@ class SvnRequestHandler(StreamRequestHandler):
 
             t += ch
 
-        debug('%d<%s' % (os.getpid(), t))
+        self.debug(t)
         return t
 
     def read(self, count):
@@ -161,7 +170,7 @@ class SvnRequestHandler(StreamRequestHandler):
 
             data += s
 
-        debug('%d<%s' % (os.getpid(), data))
+        self.debug(data)
         return data
 
     def read_str(self):
@@ -186,11 +195,11 @@ class SvnRequestHandler(StreamRequestHandler):
 
             data += s
 
-        debug('%d<%s' % (os.getpid(), data))
+        self.debug(data)
         return data
 
     def send(self, msg):
-        debug('%d>%s' % (os.getpid(), msg))
+        self.debug(msg, send=True)
         self.wfile.write('%s' % msg)
         self.wfile.flush()
 
@@ -259,15 +268,6 @@ class SvnRequestHandler(StreamRequestHandler):
         sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
                          (os.getpid(), msg))
         sys.stderr.flush()
-
-
-def debug(msg):
-    if not verbose:
-        return
-    if len(msg) > MAX_DBG_MLEN:
-        sys.stderr.write('%s...\n' % (msg[:MAX_DBG_MLEN]))
-    else:
-        sys.stderr.write('%s\n' % (msg))
 
 
 def main():
