@@ -65,7 +65,7 @@ class SimpleTest (TestSuite):
 
         failIfEqual(0, len(xml), msg='Missing entry from info')
         failIfEqual(None, xml[0].find('url'), msg='No URL in entry')
-        failUnlessEqual(url, xml[0].find('url').text, msg='URL incorrect')
+        failUnlessEqual(url, xml[0].find('url').text)
 
 
 if __name__ == "__main__":
