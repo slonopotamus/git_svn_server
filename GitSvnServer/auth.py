@@ -55,7 +55,7 @@ class CramMd5Auth(AuthMethod):
         self.link.send_msg(gen.tuple('step', gen.string(msg_id)))
 
         resp = self.get_response()
-        username, pass_hash = resp.split()
+        username, pass_hash = resp.rsplit(' ', 1)
 
         password = self.auth_db.get_password(username)
         if password is None:
