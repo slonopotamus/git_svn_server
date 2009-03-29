@@ -3,9 +3,11 @@ import os
 import shutil
 import signal
 import socket
+import sqlite3
 import sys
 import tempfile
 import time
+import xml.etree.cElementTree as ElementTree
 
 from CleverSheep.Test import ProcMan
 from CleverSheep.Test.Tester import *
@@ -16,6 +18,9 @@ scratch_dir = os.path.join(base_dir, 'scratch')
 tar_dir = os.path.join(base_dir, 'test_repo_tars')
 git_svnserver = os.path.join(base_dir, '..', 'git-svnserver')
 init_db = os.path.join(base_dir, '..', 'git_side_scripts', 'init_db')
+
+
+svn_binary = 'svn'
 
 
 def start_server(config, pidfile, ip, port):
@@ -59,14 +64,71 @@ def clean_scratch(scratch):
     shutil.rmtree(scratch)
 
 
+class SvnData (object):
+    def __init__(self, username, password, command_string):
+        self._cmd = "%s --no-auth-cache --non-interactive --username '%s' " \
+                    "--password '%s' %s" % \
+                    (svn_binary, username, password, command_string)
+        print 'cmd', self._cmd
+        self.open()
+
+    def open(self):
+        (self._in, self._data, self._err) = os.popen3(self._cmd)
+
+    def read(self, l=-1):
+        return self._data.read(l)
+
+    def close(self):
+        self._in.close()
+        self._data.close()
+        self._err.close()
+
+    def reopen(self):
+        self.close()
+        self.open()
+
+
 class TestSuite (Suite):
     ip = '127.0.0.1'
     port = 40000
+    username = 'test'
+    password = ''
 
     def __init__(self):
         self.server = None
         self.scratch = None
         super(TestSuite, self).__init__()
+
+    def get_svn_url(self, repos=None, path=''):
+        if repos is None:
+            repos = 'empty'
+        return "svn://%s:%d/%s/%s" % (self.ip, self.port, repos, path)
+
+    def get_svn_data(self, command_string, username=None, password=None):
+        if username is None:
+            username = self.username
+        if password is None:
+            password = self.password
+        svn_data = SvnData(username, password, command_string)
+
+        data = [line.strip('\n') for line in svn_data._data]
+
+        svn_data.close()
+
+        return data
+
+    def get_svn_xml(self, command_string, username=None, password=None):
+        if username is None:
+            username = self.username
+        if password is None:
+            password = self.password
+        svn_data = SvnData(username, password, "--xml %s" % command_string)
+
+        element = ElementTree.parse(svn_data._data)
+
+        svn_data.close()
+
+        return element.getroot()
 
     def start_server(self, config=None):
         if config is None:
@@ -90,6 +152,38 @@ class TestSuite (Suite):
     def server_pid(self):
         return get_pid(self.pidfile)
 
+    def db_sql(self, repos, sql, *args):
+        git_dir = os.path.join(self.scratch, repos)
+        db_path = os.path.join(git_dir, 'svnserver/db')
+        conn = sqlite3.connect(db_path, isolation_level='IMMEDIATE')
+        rows = conn.execute(sql, args).fetchall()
+        conn.commit()
+        conn.close()
+
+        return rows
+
+    def add_user(self, repos=None, username=None, password=None,
+                 name=None, email=None):
+        if repos is None:
+            repos = 'empty'
+        if username is None:
+            username = self.username
+        if password is None:
+            password = self.password
+        if name is None:
+            name = username
+        if email is None:
+            email = '%s@example.com' % name
+        self.db_sql(repos, 'INSERT INTO users VALUES (?,?,?,?)',
+                    username, name, email, password)
+
+    def delete_user(self, repos=None, username=None):
+        if repos is None:
+            repos = 'empty'
+        if username is None:
+            username = self.username
+        self.db_sql(repos, 'DELETE FROM users WHERE username=?', username)
+
     def create_empty_repos(self, name):
         cwd = os.getcwd()
         git_dir = os.path.join(self.scratch, name)
@@ -102,6 +196,10 @@ class TestSuite (Suite):
         cfg.write('[repos "%s"]\n' % name)
         cfg.write('    location = %s\n' % git_dir)
         cfg.close()
+        npr = os.path.join(base_dir, '..', 'git_side_scripts',
+                           'noddy-post-receive')
+        shutil.copy(npr, os.path.join(git_dir, 'hooks', 'post-receive'))
+        self.add_user()
 
     def create_repos_from_tar(self, name, tarname):
         cwd = os.getcwd()
