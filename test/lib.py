@@ -99,10 +99,13 @@ class TestSuite (Suite):
         self.scratch = None
         super(TestSuite, self).__init__()
 
-    def get_svn_url(self, repos=None, path=''):
+    def get_svn_url(self, repos=None, path=None):
         if repos is None:
             repos = 'empty'
-        return "svn://%s:%d/%s/%s" % (self.ip, self.port, repos, path)
+        url = "svn://%s:%d/%s" % (self.ip, self.port, repos)
+        if path is not None:
+            url = "%s/%s" % (url, path)
+        return url
 
     def get_svn_data(self, command_string, username=None, password=None):
         if username is None:
