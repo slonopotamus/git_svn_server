@@ -175,7 +175,7 @@ class GitMap (GitDb):
         row = conn.execute(sql).fetchone()
         conn.close()
         if row is None:
-            return None
+            return 0
         return int(row['revision'])
 
     def find_commit(self, ref, rev):
