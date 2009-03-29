@@ -169,6 +169,12 @@ class GitMap (GitDb):
             return None
         return rows[0]['value']
 
+    def created_date(self):
+        rows = self.execute('SELECT value FROM meta WHERE name = "created"')
+        if len(rows) == 0:
+            return None
+        return rows[0]['value']
+
     def get_latest_rev(self):
         conn = self.connect()
         sql = 'SELECT revision FROM transactions ORDER BY revision DESC'
@@ -183,6 +189,23 @@ class GitMap (GitDb):
         sql = 'SELECT revision, action, sha1 FROM transactions WHERE ref = ? ' \
               'AND revision <= ? ORDER BY revision DESC'
         row = conn.execute(sql, (ref, rev)).fetchone()
+        conn.close()
+
+        if row is None:
+            return None
+
+        if row['action'] in ['commit', 'create branch']:
+            return row['sha1']
+        elif row['action'] == 'delete branch':
+            return None
+
+        return None
+
+    def get_commit_by_rev(self, rev):
+        conn = self.connect()
+        sql = 'SELECT revision, action, sha1 FROM transactions WHERE ' \
+              'revision = ?'
+        row = conn.execute(sql, (rev,)).fetchone()
         conn.close()
 
         if row is None:
@@ -396,6 +419,16 @@ class Git (repos.Repos):
     def stat(self, url, rev):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
+
+        if ref is None and path == '':
+            # We have been asked about the respository root, we don't have one
+            # so we have to make something up.
+            sha1 = self.map.get_commit_by_rev(rev)
+            if sha1 is None:
+                changed, by, at = rev, None, self.map.created_date()
+            else:
+                changed, by, at = self.__get_last_changed(sha1, path)
+            return '', 'dir', 0, changed, by, at
 
         if sha1 is None:
             return None, None, 0, 0, None, None

@@ -19,27 +19,24 @@ class Stat(SimpleCommand):
         if len(args) > 1:
             rev = int(args[1][0])
 
-##        ref, path = repos.parse_url(url)
-
-##        print "ref: %s" % ref
-##        print "path: %s" % path
-##        print "rev: %s" % rev
-
         path, kind, size, changed, by, at = repos.stat(url, rev)
 
         if path is None:
             self.link.send_msg(gen.success(gen.list()))
+            return
 
+        props = repos.get_props(url, rev, False)
+
+        if by is None:
+            by = gen.list()
         else:
-            props = repos.get_props(url, rev, False)
+            by = gen.list(gen.string(by))
 
-            ls_data = gen.list(kind,
-                               size,
-                               gen.bool(len(props) > 0),
-                               changed,
-                               gen.list(gen.string(at)),
-                               gen.list(gen.string(by)))
+        ls_data = gen.list(kind,
+                           size,
+                           gen.bool(len(props) > 0),
+                           changed,
+                           gen.list(gen.string(at)),
+                           by)
 
-            self.link.send_msg(gen.success(gen.list(ls_data)))
-
-
+        self.link.send_msg(gen.success(gen.list(ls_data)))

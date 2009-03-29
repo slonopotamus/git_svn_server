@@ -3,6 +3,7 @@
 
 import os
 import sqlite3
+import time
 import uuid
 
 
@@ -44,6 +45,16 @@ def main():
     # Create a UUID for this repository
     conn.execute("INSERT INTO meta (name, value ) VALUES(?, ?)",
                  ('uuid', str(uuid.uuid4())))
+
+    # Record the creation date for this repository
+    
+    # TODO: This ought to be when the directory was created, but for now we'll
+    # use the current time.
+    
+    date = time.strftime('%Y-%m-%dT%H:%M:%S.000000Z',
+                         time.gmtime())
+    conn.execute("INSERT INTO meta (name, value ) VALUES(?, ?)",
+                 ('created', str(date)))
 
     conn.commit()
     conn.close()
