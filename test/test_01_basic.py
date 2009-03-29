@@ -54,6 +54,19 @@ class SimpleTest (TestSuite):
         s, error = self.connect_to_server()
         failUnlessEqual(0, error)
 
+    @test
+    def check_svn_info(self):
+        """Check that the server looks like a Subversion server"""
+
+        self.start_server()
+
+        url = self.get_svn_url()
+        xml = self.get_svn_xml('info %s' % url)
+
+        failIfEqual(0, len(xml), msg='Missing entry from info')
+        failIfEqual(None, xml[0].find('url'), msg='No URL in entry')
+        failUnlessEqual(url, xml[0].find('url').text, msg='URL incorrect')
+
 
 if __name__ == "__main__":
     runModule()
