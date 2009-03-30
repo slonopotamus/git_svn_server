@@ -1,3 +1,5 @@
 SVN protocol description
 
 http://svn.collab.net/repos/svn/trunk/subversion/libsvn_ra_svn/protocol
+
+http://svn.collab.net/repos/svn/trunk/notes/
