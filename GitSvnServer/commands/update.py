@@ -231,6 +231,9 @@ class Update(Command):
     def send_update(self):
         repos = self.link.repos
 
+        depth = None
+        send_copyfrom = False
+
         print "XX: %s" % self.args
 
         if len(self.args[0]) == 0:
@@ -238,7 +241,12 @@ class Update(Command):
         else:
             rev = int(self.args[0][0])
         path = parse.string(self.args[1])
+
         recurse = self.args[2] == 'true'
+
+        if len(self.args) > 3:
+            depth = self.args[3]
+            send_copyfrom = parse.bool(self.args[4])
 
         self.link.send_msg(gen.tuple('target-rev', rev))
 
