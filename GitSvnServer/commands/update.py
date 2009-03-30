@@ -53,9 +53,14 @@ class Update(Command):
     def get_token(self, path):
         return 'tok%s' % md5.new(path).hexdigest()
 
-    def update_dir(self, path, rev, parent_token=None):
+    def update_dir(self, path, rev, want, parent_token=None):
         repos = self.link.repos
         url = '/'.join((self.link.url, path))
+
+        if '/' in want:
+            want_head, want_tail = want.split('/', 1)
+        else:
+            want_head, want_tail = want, ''
 
         new_dir = True
         token = self.get_token(path)
@@ -113,12 +118,14 @@ class Update(Command):
         current_names = []
         for entry in repos.ls(url, rev):
             name, kind, size, last_rev, last_author, last_date = entry
+            if len(want_head) > 0 and want_head != name:
+                continue
             current_names.append(name)
             entry_path = name
             if len(path) > 0:
                 entry_path = '/'.join((path, name))
             if kind == 'dir':
-                self.update_dir(entry_path, rev, token)
+                self.update_dir(entry_path, rev, want_tail, token)
             elif kind == 'file':
                 self.update_file(entry_path, rev, token)
             else:
@@ -127,6 +134,8 @@ class Update(Command):
         if prev_rev is not None:
             for entry in repos.ls(url, prev_rev):
                 name, kind, size, last_rev, last_author, last_date = entry
+                if len(want_head) > 0 and want_head != name:
+                    continue
                 if name not in current_names:
                     entry_path = name
                     if len(path) > 0:
@@ -231,11 +240,9 @@ class Update(Command):
         path = parse.string(self.args[1])
         recurse = self.args[2] == 'true'
 
-        url = '/'.join((self.link.url, path))
-
         self.link.send_msg(gen.tuple('target-rev', rev))
 
-        self.update_dir(path, rev)
+        self.update_dir('', rev, path)
 
         print "ought to be doing the edit bits here ..."
         self.link.send_msg(gen.tuple('close-edit'))
