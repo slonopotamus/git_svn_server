@@ -114,9 +114,8 @@ class Update(Command):
         for entry in repos.ls(url, rev):
             name, kind, size, last_rev, last_author, last_date = entry
             current_names.append(name)
-            if len(path) == 0:
-                entry_path = name
-            else:
+            entry_path = name
+            if len(path) > 0:
                 entry_path = '/'.join((path, name))
             if kind == 'dir':
                 self.update_dir(entry_path, rev, token)
@@ -129,8 +128,11 @@ class Update(Command):
             for entry in repos.ls(url, prev_rev):
                 name, kind, size, last_rev, last_author, last_date = entry
                 if name not in current_names:
+                    entry_path = name
+                    if len(path) > 0:
+                        entry_path = '/'.join((path, name))
                     self.link.send_msg(gen.tuple('delete-entry',
-                                                 gen.string(name),
+                                                 gen.string(entry_path),
                                                  gen.list(prev_rev),
                                                  gen.string(token)))
 
