@@ -149,6 +149,9 @@ class GitCommit (object):
         self.prefix = prefix
         self.files = {}
 
+    def file_complete(self, path, sha1):
+        self.files.setdefault(path, {})['sha1'] = sha1
+
     def modify_file(self, path, rev=None):
         if rev is not None:
             sha1 = self.repos.map.find_commit(self.ref, rev)
@@ -158,8 +161,8 @@ class GitCommit (object):
             path = '/'.join((self.prefix, path))
         return GitFile(self, path)
 
-    def file_complete(self, path, sha1):
-        self.files[path] = sha1
+    def set_file_prop(self, path, name, value):
+        self.files.setdefault(path, {}).setdefault('props', {})[name] = value
 
 
 class GitMap (GitDb):
@@ -393,6 +396,23 @@ class Git (repos.Repos):
 
         return changed_files
 
+    def __translate_special(self, sha1):
+        mode, sha = '', None
+
+        cmd = 'cat-file blob %s' % sha1
+        data = self.__get_git_data(cmd)[0]
+
+        if data.startswith('link '):
+            mode = '120000'
+            cmd = '--bare hash-object -w --stdin'
+            ho = GitData(self, cmd)
+            ho.write(data[5:])
+            ho.close_stdin()
+            sha = ho.read().strip()
+            ho.close()
+
+        return mode, sha
+
     def _path_changed(self, sha1, sha2, path):
         cmd = 'diff-tree --name-only %s %s -- %s' % (sha1, sha2, path)
         changes = self.__get_git_data(cmd)
@@ -608,10 +628,26 @@ class Git (repos.Repos):
         cmd = '--bare read-tree %s' % commit.parent
         self.__get_git_data(cmd)
 
+        print commit.files
+
         cmd = '--bare update-index --add --index-info'
         ui = GitData(self, cmd)
-        for path, sha in commit.files.items():
-            ui.write('100644 %s\t%s\n' % (sha, path))
+        for path, data in commit.files.items():
+            sha = data['sha1']
+            props = data.get('props', {})
+            mode = '100644'
+
+            if 'svn:special' in props:
+                mode, sha = self.__translate_special(sha)
+                if sha is None:
+                    print 'some unknown type of svn special object has been ' \
+                          'sent!'
+                    continue
+
+            if 'svn:executable' in props:
+                mode = '100755'
+
+            ui.write('%s %s\t%s\n' % (mode, sha, path))
         ui.close()
 
         cmd = '--bare write-tree'

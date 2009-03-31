@@ -61,8 +61,9 @@ class File (object):
         self.diff = None
         File.files[token] = self
 
-    def set_prop(name, value):
+    def set_prop(self, name, value):
         self.props[name] = value
+        self.commit.set_file_prop(self.path, name, value)
 
     def delta_start(self, base_checksum):
         rev = self.rev
