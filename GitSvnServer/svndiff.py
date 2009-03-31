@@ -1,4 +1,5 @@
 
+import md5
 import sys
 import zlib
 
@@ -14,16 +15,18 @@ def encode_int(i):
     return s
 
 
-def header():
-    return 'SVN' + chr(0)
-
-
-def encode_new(data):
+def encode_new(data, version = 0):
     i = chr(128) + encode_int(len(data))
+
+    tv_len = len(data)
+
+    if version == 1:
+        i = encode_int(len(i)) + i
+        data = encode_int(len(data)) + zlib.compress(data)
 
     w = encode_int(0)
     w += encode_int(0)
-    w += encode_int(len(data))
+    w += encode_int(tv_len)
     w += encode_int(len(i))
     w += encode_int(len(data))
     w += i
@@ -31,6 +34,46 @@ def encode_new(data):
     w += data
 
     return w
+
+
+class Encoder():
+    def __init__(self, source, version=0, original=None):
+        self.version = version
+        self.source = source
+        self.original = original
+        self.sent_header = False
+        self.src_offset = 0
+        self.orig_offset = 0
+        self.complete = False
+        self.chunk_size = 1024 * 1024
+        self.md5 = md5.new()
+
+    def header(self):
+        return 'SVN%s' % chr(self.version)
+
+    def get_md5(self):
+        return self.md5.hexdigest()
+
+    def get_chunk(self):
+        if self.complete:
+            return None
+
+        if not self.sent_header:
+            self.sent_header = True
+            return self.header()
+
+        if self.original is None:
+            data = self.source.read(self.chunk_size)
+            if len(data) < self.chunk_size:
+                self.complete = True
+            self.src_offset += len(data)
+            self.md5.update(data)
+            return encode_new(data, self.version)
+
+        print >> sys.stderr, "not implemented yet"
+        sys.exit(1)
+
+        return ""
 
 
 def get_svndiff_int(data):

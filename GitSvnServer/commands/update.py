@@ -181,20 +181,19 @@ class Update(Command):
         self.link.send_msg(gen.tuple('apply-textdelta', gen.string(token),
                                      '( )'))
 
-        self.link.send_msg(gen.tuple('textdelta-chunk',
-                                     gen.string(token),
-                                     gen.string(svndiff.header())))
+        diff_version = 0
+        if 'svndiff1' in self.link.client_caps:
+            diff_version = 1
 
-        m = md5.new()
-        data = contents.read(8192)
-        while len(data) > 0:
-            m.update(data)
-            diff_chunk = svndiff.encode_new(data)
+        encoder = svndiff.Encoder(contents, version=diff_version)
+
+        diff_chunk = encoder.get_chunk()
+        while diff_chunk is not None:
             self.link.send_msg(gen.tuple('textdelta-chunk',
                                          gen.string(token),
                                          gen.string(diff_chunk)))
-            data = contents.read(8192)
-        csum = m.hexdigest()
+            diff_chunk = encoder.get_chunk()
+        csum = encoder.get_md5()
 
         if prev_contents:
             prev_contents.close()
