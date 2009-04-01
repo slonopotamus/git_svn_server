@@ -66,6 +66,8 @@ class Encoder (object):
             data = self.source.read(self.chunk_size)
             if len(data) < self.chunk_size:
                 self.complete = True
+            if len(data) == 0:
+                return None
             self.src_offset += len(data)
             self.md5.update(data)
             return encode_new(data, self.version)
