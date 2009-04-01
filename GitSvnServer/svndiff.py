@@ -36,7 +36,7 @@ def encode_new(data, version = 0):
     return w
 
 
-class Encoder():
+class Encoder (object):
     def __init__(self, source, version=0, original=None):
         self.version = version
         self.source = source
