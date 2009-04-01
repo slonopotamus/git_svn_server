@@ -50,6 +50,12 @@ class Update(Command):
 
         return rev, start_empty
 
+    def get_prev_subpath_empty(self, path):
+        for prev_path, (rev, start_empty) in self.prev_revs.items():
+            if prev_path.startswith(path) and start_empty:
+                return True
+        return False
+
     def get_token(self, path):
         return 'tok%s' % md5.new(path).hexdigest()
 
@@ -70,7 +76,11 @@ class Update(Command):
         if prev_rev is None:
             new_dir = True
             prev_rev = None
-        elif prev_rev is not None:
+        elif (prev_rev == rev or not repos.path_changed(url, rev, prev_rev)) \
+                and not self.get_prev_subpath_empty(path):
+            print "skip", path, rev, prev_rev, start_empty
+            return
+        else:
             stat = repos.stat(url, prev_rev)
             new_dir = stat[0] is None
 
@@ -93,7 +103,7 @@ class Update(Command):
                                          gen.list(rev)))
 
         prev_props = {}
-        if prev_rev is not None:
+        if prev_rev is not None and not start_empty:
             for name, value in repos.get_props(url, prev_rev):
                 prev_props[name] = value
 
@@ -116,7 +126,7 @@ class Update(Command):
                                          gen.list()))
 
         current_names = []
-        for entry in repos.ls(url, rev):
+        for entry in repos.ls(url, rev, include_changed=False):
             name, kind, size, last_rev, last_author, last_date = entry
             if len(want_head) > 0 and want_head != name:
                 continue
@@ -131,8 +141,8 @@ class Update(Command):
             else:
                 raise foo
 
-        if prev_rev is not None:
-            for entry in repos.ls(url, prev_rev):
+        if prev_rev is not None and not start_empty:
+            for entry in repos.ls(url, prev_rev, include_changed=False):
                 name, kind, size, last_rev, last_author, last_date = entry
                 if len(want_head) > 0 and want_head != name:
                     continue

@@ -323,7 +323,8 @@ class Git (repos.Repos):
         cmd = 'ls-tree -l %s %s "%s"' % (options, sha1, path)
 
         for line in self.__get_git_data(cmd):
-            mode, type, sha, size, git_path = line.split()
+            stat, git_path = line.split('\t', 1)
+            mode, type, sha, size = stat.split()
             if size == '-':
                 size = 0
             results.append((mode, type, sha, int(size), git_path))
@@ -471,18 +472,21 @@ class Git (repos.Repos):
 
         return path, kind, size, changed, by, at
 
-    def ls(self, url, rev):
+    def ls(self, url, rev, include_changed=True):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
         ls_data = []
 
-        if len(path) > 0:
-            path = "%s/" % path
+        if len(path) > 0 and path[-1] != '/':
+            path += '/'
 
         for mode, type, sha, size, name in self.__ls_tree(sha1, path):
             kind = self.__map_type(type)
-            changed, by, at = self.__get_last_changed(sha1, name)
+            if include_changed :
+                changed, by, at = self.__get_last_changed(sha1, name)
+            else:
+                changed, by, at = None, None, None
             if name.startswith(path):
                 name = name[len(path):]
             if name == '.gitignore':
