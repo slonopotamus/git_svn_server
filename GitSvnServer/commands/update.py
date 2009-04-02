@@ -59,7 +59,7 @@ class Update(Command):
     def get_token(self, path):
         return 'tok%s' % md5.new(path).hexdigest()
 
-    def update_dir(self, path, rev, want, parent_token=None):
+    def update_dir(self, path, rev, want, props, contents, parent_token=None):
         repos = self.link.repos
         url = '/'.join((self.link.url, path))
 
@@ -88,6 +88,9 @@ class Update(Command):
             self.link.send_msg(gen.tuple('open-root', gen.list(rev),
                                          gen.string(token)))
 
+            props = repos.get_props(url, rev)
+            contents = contents[3]
+
         elif new_dir:
             self.link.send_msg(gen.tuple('add-dir', gen.string(path),
                                          gen.string(parent_token),
@@ -107,7 +110,7 @@ class Update(Command):
             for name, value in repos.get_props(url, prev_rev):
                 prev_props[name] = value
 
-        for name, value in repos.get_props(url, rev):
+        for name, value in props:
             if name in prev_props:
                 if prev_props[name] == value:
                     del prev_props[name]
@@ -126,8 +129,7 @@ class Update(Command):
                                          gen.list()))
 
         current_names = []
-        for entry in repos.ls(url, rev, include_changed=False):
-            name, kind, size, last_rev, last_author, last_date = entry
+        for name, kind, props, content in contents:
             if len(want_head) > 0 and want_head != name:
                 continue
             current_names.append(name)
@@ -135,9 +137,10 @@ class Update(Command):
             if len(path) > 0:
                 entry_path = '/'.join((path, name))
             if kind == 'dir':
-                self.update_dir(entry_path, rev, want_tail, token)
+                self.update_dir(entry_path, rev, want_tail, props, content,
+                                token)
             elif kind == 'file':
-                self.update_file(entry_path, rev, token)
+                self.update_file(entry_path, rev, props, content, token)
             else:
                 raise foo
 
@@ -157,7 +160,7 @@ class Update(Command):
 
         self.link.send_msg(gen.tuple('close-dir', gen.string(token)))
 
-    def update_file(self, path, rev, parent_token):
+    def update_file(self, path, rev, props, contents, parent_token):
         repos = self.link.repos
         url = '/'.join((self.link.url, path))
 
@@ -174,8 +177,6 @@ class Update(Command):
             prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev)
 
         new_file = prev_contents is None
-
-        rev, props, contents = repos.get_file(url, rev)
 
         if new_file:
             self.link.send_msg(gen.tuple('add-file', gen.string(path),
@@ -259,7 +260,8 @@ class Update(Command):
 
         self.link.send_msg(gen.tuple('target-rev', rev))
 
-        self.update_dir('', rev, path)
+        contents = repos.get_files(self.link.url, rev)
+        self.update_dir('', rev, path, [], contents)
 
         print "ought to be doing the edit bits here ..."
         self.link.send_msg(gen.tuple('close-edit'))
