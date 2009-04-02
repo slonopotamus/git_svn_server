@@ -83,6 +83,9 @@ class Repos (object):
     def get_file(self, url, rev):
         raise UnImplemented()
 
+    def get_files(self, url, rev):
+        raise UnImplemented()
+
     def start_commit(self):
         raise UnImplemented()
 

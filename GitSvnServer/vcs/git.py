@@ -64,7 +64,7 @@ class GitData (object):
     def __init__(self, repos, command_string):
         self._cmd = "%s %s" % (git_binary, command_string)
         self._repos = repos
-        self.open()
+        self._data = None
 
     def open(self):
         if verbose_mode:
@@ -83,6 +83,9 @@ class GitData (object):
         return self._read
 
     def read(self, l=-1):
+        if self._data is None:
+            self.open()
+
         data = self._data.read(l)
         self._read += len(data)
         return data
@@ -97,6 +100,7 @@ class GitData (object):
         self._in.close()
         self._data.close()
         self._err.close()
+        self._data = None
 
     def reopen(self):
         self.close()
@@ -107,12 +111,13 @@ class FakeData (object):
     def __init__(self, data):
         self._data = data
         self._string = None
-        self.open()
 
     def open(self):
         self._string = StringIO.StringIO(self._data)
 
     def read(self, l=-1):
+        if self._string is None:
+            self.open()
         return self._string.read(l)
 
     def close(self):
@@ -264,6 +269,8 @@ class Git (repos.Repos):
     def __get_git_data(self, command_string):
         git_data = GitData(self, command_string)
 
+        git_data.open()
+
         data = [line.strip('\n') for line in git_data._data]
 
         git_data.close()
@@ -375,6 +382,16 @@ class Git (repos.Repos):
 
         return tree, parents, name, email, date, msg
 
+    def __get_file_contents(self, mode, sha):
+        cmd = 'cat-file blob %s' % sha
+        contents = GitData(self, cmd)
+
+        if mode == '120000':
+            link = 'link %s' % contents.read()
+            contents = FakeData(link)
+
+        return contents
+
     def __get_last_changed(self, sha1, path):
         changed_shas = self.__rev_list(sha1, path, count=1)
 
@@ -413,6 +430,26 @@ class Git (repos.Repos):
             ho.close()
 
         return mode, sha
+
+    def __get_svn_props(self, mode):
+        props = []
+
+        if mode == '120000':
+            props.append(('svn:special', '*'))
+        elif mode == '100755':
+            props.append(('svn:executable', '*'))
+
+        return props
+
+    def __svn_internal_props(self, changed, by, at):
+        props = []
+
+        props.append(('svn:entry:uuid', self.get_uuid()))
+        props.append(('svn:entry:committed-rev', str(changed)))
+        props.append(('svn:entry:committed-date', at))
+        props.append(('svn:entry:last-author', by))
+
+        return props
 
     def _path_changed(self, sha1, sha2, path):
         cmd = 'diff-tree --name-only %s %s -- %s' % (sha1, sha2, path)
@@ -552,20 +589,14 @@ class Git (repos.Repos):
             if len(data) == 1:
                 mode = data[0][0]
 
-                if mode == '120000':
-                    props.append(('svn:special', '*'))
-                elif mode == '100755':
-                    props.append(('svn:executable', '*'))
+                props.extend(self.__get_svn_props(mode))
 
         if not include_internal:
             return props
 
         changed, by, at = self.__get_last_changed(sha1, path)
 
-        props.append(('svn:entry:uuid', self.get_uuid()))
-        props.append(('svn:entry:committed-rev', str(changed)))
-        props.append(('svn:entry:committed-date', at))
-        props.append(('svn:entry:last-author', by))
+        props.extend(self.__svn_internal_props(changed, by, at))
 
         return props
 
@@ -595,14 +626,68 @@ class Git (repos.Repos):
 
         props = self.get_props(url, rev, mode=mode)
 
-        cmd = 'cat-file blob %s' % sha
-        contents = GitData(self, cmd)
+        return rev, props, self.__get_file_contents(mode, sha)
 
-        if mode == '120000':
-            link = 'link %s' % contents.read()
-            contents = FakeData(link)
+    def get_files(self, url, rev):
+        ref, path = self.__map_url(url)
+        sha1 = self.map.find_commit(ref, rev)
 
-        return rev, props, contents
+        paths = {}
+        for mode, type, sha, size, name in self.__ls_tree(sha1, path,
+                                                          options='-r -t'):
+            paths[name] = (type, mode, sha)
+
+        changed_paths = {}
+        for sha in self.__rev_list(sha1, ''):
+            for mode, type, fsha, size, name in self.__ls_tree(sha, path,
+                                                              options='-r -t'):
+                if name not in paths:
+                    continue
+
+                a, b, psha = paths[name]
+                if fsha != psha:
+                    changed_paths[name] = sha
+
+            if len(changed_paths) == len(paths):
+                break
+
+        file_data = {}
+
+        changed_cache = {}
+
+        for fpath, (type, mode, sha) in paths.items():
+            if '/' in fpath:
+                parent, name = fpath.rsplit('/', 1)
+            else:
+                parent, name = '', fpath
+
+            if fpath not in changed_paths:
+                last_commit = sha1
+            else:
+                last_commit = changed_paths[fpath]
+            if last_commit in changed_cache:
+                changed, by, at = changed_cache[last_commit]
+            else:
+                ref, changed = self.map.get_ref_rev(last_commit)
+                t, p, n, by, at, m = self.__commit_info(last_commit)
+                changed_cache[last_commit] = changed, by, at
+
+            props = self.__svn_internal_props(changed, by, at)
+            contents = []
+
+            if type == 'blob':
+                contents = self.__get_file_contents(mode, sha)
+                props.extend(self.__get_svn_props(mode))
+
+            if fpath in file_data:
+                file_data[fpath][2] = props
+            else:
+                file_data[fpath] = [name, self.__map_type(type), props, contents]
+
+            file_data.setdefault(parent, [parent, 'dir', [], []])[3].append(
+                file_data[fpath])
+
+        return file_data[path]
 
     def start_commit(self, url):
         ref, path = self.__map_url(url)
