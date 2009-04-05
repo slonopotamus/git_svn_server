@@ -310,7 +310,7 @@ def main():
 
     seen = set()
     for commit in commits:
-        while tags[0].date < commit.date:
+        while tags and tags[0].date < commit.date:
             tag = tags.pop(0)
             print "   tag '%s' '%s' '%s'" % (tag.name, tag.tag[:8], tag.commit[:8])
             register_transaction('tag', tag.name, tag.tag, tag.commit)
@@ -328,6 +328,11 @@ def main():
             print "commit '%s' '%s'" % (commit.branch, commit.sha1[:8])
             register_transaction('commit', commit.branch, commit.sha1)
         seen.add(commit.branch)
+
+    while tags:
+        tag = tags.pop(0)
+        print "   tag '%s' '%s' '%s'" % (tag.name, tag.tag[:8], tag.commit[:8])
+        register_transaction('tag', tag.name, tag.tag, tag.commit)
 
     cursor.close()
     conn.commit()
