@@ -636,10 +636,14 @@ class Git (repos.Repos):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
+        print "run ls-tree"
+
         paths = {}
         for mode, type, sha, size, name in self.__ls_tree(sha1, path,
                                                           options='-r -t'):
             paths[name] = (type, mode, sha)
+
+        print "run log"
 
         commit, email, data = None, None, None
         changed_paths = {}
@@ -673,6 +677,8 @@ class Git (repos.Repos):
             if len(changed_paths) == len(paths):
                 break
 
+        print "put the data together"
+
         file_data = {}
 
         for fpath, (type, mode, sha) in paths.items():
@@ -688,6 +694,7 @@ class Git (repos.Repos):
             if last_commit in changed_cache:
                 changed, by, at = changed_cache[last_commit]
             else:
+                print "changed_cache miss"
                 ref, changed = self.map.get_ref_rev(last_commit)
                 t, p, n, by, at, m = self.__commit_info(last_commit)
                 changed_cache[last_commit] = changed, by, at
@@ -718,6 +725,8 @@ class Git (repos.Repos):
                 file_data[fpath] = [name, kind, props, contents]
 
             file_data.setdefault(parent, def_parent)[3].append(file_data[fpath])
+
+        print "done"
 
         return file_data[path]
 
