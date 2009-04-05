@@ -334,14 +334,14 @@ class Git (repos.Repos):
 
         return results
 
-    def __log(self, sha1, pretty=None, format=None, options=''):
+    def __log(self, sha1, path, pretty=None, format=None, options=''):
         if pretty is not None:
             options = '%s "--pretty=%s"' % (options, pretty)
 
         elif format is not None:
             options = '%s "--pretty=format:%s"' % (options, format)
 
-        cmd = 'log %s %s' % (options, sha1)
+        cmd = 'log %s %s -- %s' % (options, sha1, path)
 
         return self.__get_git_data(cmd)
 
@@ -647,7 +647,7 @@ class Git (repos.Repos):
         commit, email, data = None, None, None
         changed_paths = {}
         changed_cache = {}
-        for line in self.__log(sha1, format='/c/%H%n/a/%ae%n/d/%ad%n//',
+        for line in self.__log(sha1, path, format='/c/%H%n/a/%ae%n/d/%ad%n//',
                                options='--date=raw --name-only'):
             if line.startswith('/c/'):
                 commit = line[3:]
