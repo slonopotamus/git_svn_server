@@ -695,22 +695,29 @@ class Git (repos.Repos):
             props = self.__svn_internal_props(changed, by, at)
             contents = []
 
+            parent_name = parent
+            if '/' in parent:
+                parent_name = parent.rsplit('/', 1)[-1]
+            def_parent = [parent_name, 'dir', [], []]
+
+            if name == '.gitignore':
+                contents = self.__get_file_contents(mode, sha)
+                prop = 'svn:ignore', contents.read()
+                contents.close()
+                file_data.setdefault(parent, def_parent)[2].append(prop)
+                continue
+
             if type == 'blob':
                 contents = self.__get_file_contents(mode, sha)
                 props.extend(self.__get_svn_props(mode))
 
             if fpath in file_data:
-                file_data[fpath][2] = props
+                file_data[fpath][2].extend(props)
             else:
-                file_data[fpath] = [name, self.__map_type(type), props, contents]
+                kind = self.__map_type(type)
+                file_data[fpath] = [name, kind, props, contents]
 
-            if '/' in parent:
-                parent_parent, parent_name = parent.rsplit('/', 1)
-            else:
-                parent_parent, parent_name = '', parent
-
-            file_data.setdefault(parent, [parent_name, 'dir', [], []])[3].append(
-                file_data[fpath])
+            file_data.setdefault(parent, def_parent)[3].append(file_data[fpath])
 
         return file_data[path]
 
