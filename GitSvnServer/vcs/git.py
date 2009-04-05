@@ -680,7 +680,12 @@ class Git (repos.Repos):
             else:
                 file_data[fpath] = [name, self.__map_type(type), props, contents]
 
-            file_data.setdefault(parent, [parent, 'dir', [], []])[3].append(
+            if '/' in parent:
+                parent_parent, parent_name = parent.rsplit('/', 1)
+            else:
+                parent_parent, parent_name = '', parent
+
+            file_data.setdefault(parent, [parent_name, 'dir', [], []])[3].append(
                 file_data[fpath])
 
         return file_data[path]
