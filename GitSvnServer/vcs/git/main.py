@@ -520,7 +520,6 @@ class Git (repos.Repos):
         sha1 = self.map.find_commit(ref, rev)
 
         # find out what files exist in the requested commit under the given path
-        print "run ls-tree"
 
         paths = {}
         for mode, type, sha, size, name in self.__ls_tree(sha1, path,
@@ -529,7 +528,6 @@ class Git (repos.Repos):
 
         # find out when the files discovered above last changed, and who made
         # that commit
-        print "run log"
 
         commit, email, data = None, None, None
         changed_paths = {}
@@ -564,7 +562,6 @@ class Git (repos.Repos):
                 break
 
         # assemble the recursive structure for the update command
-        print "put the data together"
 
         file_data = {}
 
@@ -612,8 +609,6 @@ class Git (repos.Repos):
                 file_data[fpath] = [name, kind, props, contents]
 
             file_data.setdefault(parent, def_parent)[3].append(file_data[fpath])
-
-        print "done"
 
         return file_data[path]
 

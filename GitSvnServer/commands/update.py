@@ -78,7 +78,6 @@ class Update(Command):
             prev_rev = None
         elif (prev_rev == rev or not repos.path_changed(url, rev, prev_rev)) \
                 and not self.get_prev_subpath_empty(path):
-            print "skip", path, rev, prev_rev, start_empty
             return
         else:
             stat = repos.stat(url, prev_rev)
