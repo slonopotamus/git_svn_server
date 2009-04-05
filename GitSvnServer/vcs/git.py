@@ -334,6 +334,17 @@ class Git (repos.Repos):
 
         return results
 
+    def __log(self, sha1, pretty=None, format=None, options=''):
+        if pretty is not None:
+            options = '%s "--pretty=%s"' % (options, pretty)
+
+        elif format is not None:
+            options = '%s "--pretty=format:%s"' % (options, format)
+
+        cmd = 'log %s %s' % (options, sha1)
+
+        return self.__get_git_data(cmd)
+
     def __rev_list(self, sha1, path, count=None):
         results = []
 
@@ -633,23 +644,39 @@ class Git (repos.Repos):
                                                           options='-r -t'):
             paths[name] = (type, mode, sha)
 
+        commit, email, data = None, None, None
         changed_paths = {}
-        for sha in self.__rev_list(sha1, ''):
-            for mode, type, fsha, size, name in self.__ls_tree(sha, path,
-                                                              options='-r -t'):
-                if name not in paths:
-                    continue
+        changed_cache = {}
+        for line in self.__log(sha1, format='/c/%H%n/a/%ae%n/d/%ad%n//',
+                               options='--date=raw --name-only'):
+            if line.startswith('/c/'):
+                commit = line[3:]
+                continue
 
-                a, b, psha = paths[name]
-                if fsha != psha:
-                    changed_paths[name] = sha
+            if line.startswith('/a/'):
+                email = line[3:]
+                continue
+
+            if line.startswith('/d/'):
+                when = int(line[3:-6].strip())
+                tz = int(line[-5:].strip())
+                tz_secs = 60 * (60 * (tz/100) + (tz%100))
+                date = time.strftime('%Y-%m-%dT%H:%M:%S.000000Z',
+                                     time.gmtime(when + tz_secs))
+                continue
+
+            if line.startswith('//'):
+                ref, changed = self.map.get_ref_rev(commit)
+                changed_cache[commit] = changed, email, date
+                continue
+
+            if line in paths and line not in changed_paths:
+                changed_paths[line] = commit
 
             if len(changed_paths) == len(paths):
                 break
 
         file_data = {}
-
-        changed_cache = {}
 
         for fpath, (type, mode, sha) in paths.items():
             if '/' in fpath:
