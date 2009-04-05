@@ -202,10 +202,8 @@ class GitMap (GitDb):
         if row is None:
             return None
 
-        if row['action'] in ['commit', 'create branch']:
+        if row['action'] in ['commit', 'branch', 'merge']:
             return row['sha1']
-        elif row['action'] == 'delete branch':
-            return None
 
         return None
 
@@ -219,10 +217,8 @@ class GitMap (GitDb):
         if row is None:
             return None
 
-        if row['action'] in ['commit', 'create branch']:
+        if row['action'] in ['commit', 'branch', 'merge']:
             return row['sha1']
-        elif row['action'] == 'delete branch':
-            return None
 
         return None
 
