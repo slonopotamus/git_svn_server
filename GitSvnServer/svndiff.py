@@ -22,7 +22,10 @@ def encode_new(data, version = 0):
 
     if version == 1:
         i = encode_int(len(i)) + i
-        data = encode_int(len(data)) + zlib.compress(data)
+        zdata = zlib.compress(data)
+        if len(zdata) >= len(data):
+            zdata = data
+        data = encode_int(len(data)) + zdata
 
     w = encode_int(0)
     w += encode_int(0)
