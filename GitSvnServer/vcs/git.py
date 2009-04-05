@@ -555,7 +555,6 @@ class Git (repos.Repos):
 
         print path, target_paths
 
-        log_data = []
         for row in commits:
             #rev, action, sha1, origin = row
             rev = row['revision']
@@ -573,10 +572,8 @@ class Git (repos.Repos):
             has_children = False
             revprops = []
             t, p, n, author, date, msg = self.__commit_info(sha1)
-            log_data.append((changed, rev, author, date, msg,
-                             has_children, revprops))
 
-        return log_data
+            yield (changed, rev, author, date, msg, has_children, revprops)
 
     def rev_proplist(self, rev):
         raise repos.UnImplemented
