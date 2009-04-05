@@ -263,10 +263,12 @@ class Update(Command):
         contents = repos.get_files(self.link.url, rev)
         self.update_dir('', rev, path, [], contents)
 
-        print "ought to be doing the edit bits here ..."
         self.link.send_msg(gen.tuple('close-edit'))
         msg = parse.msg(self.link.read_msg())
         if msg[0] != 'success':
-            self.link.send_msg(gen.error(1, 'client barfed'))
+            errno = msg[1][0][0]
+            errmsg = parse.string(msg[1][0][1])
+            self.link.send_msg(gen.tuple('abort-edit'))
+            self.link.send_msg(gen.error(errno, errmsg))
         else:
             self.link.send_msg(gen.success())
