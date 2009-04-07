@@ -2,88 +2,15 @@
 from email.utils import parseaddr
 import os
 import re
-import cStringIO as StringIO
-import sqlite3
 import time
 import uuid
 
 from GitSvnServer import repos
 from GitSvnServer.errors import *
 
+from cat_file import *
+from data import *
 from db import *
-
-
-git_binary = "git"
-verbose_mode = False
-
-
-class GitData (object):
-    def __init__(self, repos, command_string):
-        self._cmd = "%s %s" % (git_binary, command_string)
-        self._repos = repos
-        self._data = None
-
-    def open(self):
-        if verbose_mode:
-            print "  >> %s" % (self._cmd)
-
-        cwd = os.getcwd()
-        os.chdir(self._repos.config.location)
-
-        (self._in, self._data, self._err) = os.popen3(self._cmd)
-
-        self._read = 0
-
-        os.chdir(cwd)
-
-    def tell(self):
-        return self._read
-
-    def read(self, l=-1):
-        if self._data is None:
-            self.open()
-
-        data = self._data.read(l)
-        self._read += len(data)
-        return data
-
-    def write(self, data):
-        self._in.write(data)
-
-    def close_stdin(self):
-        self._in.close()
-
-    def close(self):
-        self._in.close()
-        self._data.close()
-        self._err.close()
-        self._data = None
-
-    def reopen(self):
-        self.close()
-        self.open()
-
-
-class FakeData (object):
-    def __init__(self, data):
-        self._data = data
-        self._string = None
-
-    def open(self):
-        self._string = StringIO.StringIO(self._data)
-
-    def read(self, l=-1):
-        if self._string is None:
-            self.open()
-        return self._string.read(l)
-
-    def close(self):
-        self._string.close()
-        self._string = None
-
-    def reopen(self):
-        self.close()
-        self.open()
 
 
 class GitFile (object):
@@ -91,7 +18,7 @@ class GitFile (object):
         self.commit = commit
         self.path = path
         cmd = '--bare hash-object -w --stdin'
-        self.hash_object = GitData(commit.repos, cmd)
+        self.hash_object = GitData(commit.repos.config.location, cmd)
 
     def write(self, data):
         self.hash_object.write(data)
@@ -134,6 +61,7 @@ class Git (repos.Repos):
         super(Git, self).__init__(host, base, config)
         self.map = GitMap(self, config.location)
         self.auth_db = GitAuth(self, self.config.location)
+        self.cat_file = GitCatFile(config.location)
         self.trunk_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
                                    (self.base_url, config.trunk))
         branches = config.branches.replace('$(branch)', '(?P<branch>[^/]+)')
@@ -146,7 +74,7 @@ class Git (repos.Repos):
                                    (self.base_url))
 
     def __get_git_data(self, command_string):
-        git_data = GitData(self, command_string)
+        git_data = GitData(self.config.location, command_string)
 
         git_data.open()
 
@@ -203,6 +131,9 @@ class Git (repos.Repos):
     def get_latest_rev(self):
         return self.map.get_latest_rev()
 
+    def __get_object(self, sha1):
+        return self.cat_file.get_object(sha1)
+
     def __ls_tree(self, sha1, path, options=''):
         results = []
 
@@ -242,14 +173,14 @@ class Git (repos.Repos):
         return results
 
     def __commit_info(self, sha1):
-        cmd = 'cat-file commit %s' % (sha1)
-
         parents = []
 
-        data = self.__get_git_data(cmd)
+        obj = self.__get_object(sha1)
+        data = obj.read()
+        obj.close()
 
         c = 0
-        for line in data:
+        for line in data.split('\n'):
             c += 1
             if line == '':
                 break
@@ -273,11 +204,11 @@ class Git (repos.Repos):
         return tree, parents, name, email, date, msg
 
     def __get_file_contents(self, mode, sha):
-        cmd = 'cat-file blob %s' % sha
-        contents = GitData(self, cmd)
+        contents = self.__get_object(sha)
 
         if mode == '120000':
             link = 'link %s' % contents.read()
+            contents.close()
             contents = FakeData(link)
 
         return contents
@@ -307,13 +238,14 @@ class Git (repos.Repos):
     def __translate_special(self, sha1):
         mode, sha = '', None
 
-        cmd = 'cat-file blob %s' % sha1
-        data = self.__get_git_data(cmd)[0]
+        obj = self.__get_object(sha1)
+        data = obj.read()
+        obj.close()
 
         if data.startswith('link '):
             mode = '120000'
             cmd = '--bare hash-object -w --stdin'
-            ho = GitData(self, cmd)
+            ho = GitData(self.config.location, cmd)
             ho.write(data[5:])
             ho.close_stdin()
             sha = ho.read().strip()
@@ -643,7 +575,7 @@ class Git (repos.Repos):
         print commit.files
 
         cmd = '--bare update-index --add --index-info'
-        ui = GitData(self, cmd)
+        ui = GitData(self.config.location, cmd)
         for path, data in commit.files.items():
             sha = data['sha1']
             props = data.get('props', {})
@@ -666,7 +598,7 @@ class Git (repos.Repos):
         tree = self.__get_git_data(cmd)[0]
 
         cmd = '--bare commit-tree %s -p %s' % (tree, commit.parent)
-        ct = GitData(self, cmd)
+        ct = GitData(self.config.location, cmd)
         ct.write(msg)
         ct.close_stdin()
         commit_sha = ct.read().strip()

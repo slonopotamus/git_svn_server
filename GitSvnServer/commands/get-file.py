@@ -41,6 +41,7 @@ class GetFile (SimpleCommand):
             data = contents.read(8192)
             total_len += len(data)
         csum = gen.string(m.hexdigest())
+        contents.close()
 
         response = (gen.list(csum), rev, gen.list(*p))
 
@@ -50,7 +51,7 @@ class GetFile (SimpleCommand):
             if total_len == len(data):
                 self.link.send_msg(gen.string(data))
             else:
-                contents.reopen()
+                rev, props, contents = repos.get_file(url, rev)
                 data = contents.read(8192)
                 while len(data) > 0:
                     self.link.send_msg(gen.string(data))
