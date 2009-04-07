@@ -1,9 +1,20 @@
 
 import md5
+import Queue
+import threading
 
 from GitSvnServer import parse, svndiff
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
+
+
+def send_thread(link, inq, outq):
+    m = inq.get()
+    while m is not None:
+        link.send_msg(*m)
+        m = inq.get()
+    outq.put(True)
+
 
 class Update(Command):
     _cmd = 'update'
@@ -59,6 +70,9 @@ class Update(Command):
     def get_token(self, path):
         return 'tok%s' % md5.new(path).hexdigest()
 
+    def send(self, *args):
+        self.sendq.put(args)
+
     def update_dir(self, path, rev, want, props, contents, parent_token=None):
         repos = self.link.repos
         url = '/'.join((self.link.url, path))
@@ -84,25 +98,25 @@ class Update(Command):
             new_dir = stat[0] is None
 
         if parent_token is None:
-            self.link.send_msg(gen.tuple('open-root', gen.list(rev),
-                                         gen.string(token)))
+            self.send(gen.tuple('open-root', gen.list(rev),
+                                gen.string(token)))
 
             props = repos.get_props(url, rev)
             contents = contents[3]
 
         elif new_dir:
-            self.link.send_msg(gen.tuple('add-dir', gen.string(path),
-                                         gen.string(parent_token),
-                                         gen.string(token), '( )'))
+            self.send(gen.tuple('add-dir', gen.string(path),
+                                gen.string(parent_token),
+                                gen.string(token), '( )'))
 
             prev_rev = None
 
         else:
-            self.link.send_msg(gen.tuple('open-dir',
-                                         gen.string(path),
-                                         gen.string(parent_token),
-                                         gen.string(token),
-                                         gen.list(rev)))
+            self.send(gen.tuple('open-dir',
+                                gen.string(path),
+                                gen.string(parent_token),
+                                gen.string(token),
+                                gen.list(rev)))
 
         prev_props = {}
         if prev_rev is not None and not start_empty:
@@ -116,16 +130,16 @@ class Update(Command):
                     continue
                 del prev_props[name]
 
-            self.link.send_msg(gen.tuple('change-dir-prop',
-                                         gen.string(token),
-                                         gen.string(name),
-                                         gen.list(gen.string(value))))
+            self.send(gen.tuple('change-dir-prop',
+                                gen.string(token),
+                                gen.string(name),
+                                gen.list(gen.string(value))))
 
         for name in prev_props.keys():
-            self.link.send_msg(gen.tuple('change-dir-prop',
-                                         gen.string(token),
-                                         gen.string(name),
-                                         gen.list()))
+            self.send(gen.tuple('change-dir-prop',
+                                gen.string(token),
+                                gen.string(name),
+                                gen.list()))
 
         current_names = []
         for name, kind, props, content in contents:
@@ -152,12 +166,12 @@ class Update(Command):
                     entry_path = name
                     if len(path) > 0:
                         entry_path = '/'.join((path, name))
-                    self.link.send_msg(gen.tuple('delete-entry',
-                                                 gen.string(entry_path),
-                                                 gen.list(prev_rev),
-                                                 gen.string(token)))
+                    self.send(gen.tuple('delete-entry',
+                                        gen.string(entry_path),
+                                        gen.list(prev_rev),
+                                        gen.string(token)))
 
-        self.link.send_msg(gen.tuple('close-dir', gen.string(token)))
+        self.send(gen.tuple('close-dir', gen.string(token)))
 
     def update_file(self, path, rev, props, contents, parent_token):
         repos = self.link.repos
@@ -178,18 +192,17 @@ class Update(Command):
         new_file = prev_contents is None
 
         if new_file:
-            self.link.send_msg(gen.tuple('add-file', gen.string(path),
-                                         gen.string(parent_token),
-                                         gen.string(token), '( )'))
+            self.send(gen.tuple('add-file', gen.string(path),
+                                gen.string(parent_token),
+                                gen.string(token), '( )'))
 
         else:
-            self.link.send_msg(gen.tuple('open-file', gen.string(path),
-                                         gen.string(parent_token),
-                                         gen.string(token),
-                                         gen.list(rev)))
+            self.send(gen.tuple('open-file', gen.string(path),
+                                gen.string(parent_token),
+                                gen.string(token),
+                                gen.list(rev)))
 
-        self.link.send_msg(gen.tuple('apply-textdelta', gen.string(token),
-                                     '( )'))
+        self.send(gen.tuple('apply-textdelta', gen.string(token), '( )'))
 
         diff_version = 0
         if 'svndiff1' in self.link.client_caps:
@@ -198,10 +211,14 @@ class Update(Command):
         encoder = svndiff.Encoder(contents, version=diff_version)
 
         diff_chunk = encoder.get_chunk()
+        count = 0
         while diff_chunk is not None:
-            self.link.send_msg(gen.tuple('textdelta-chunk',
-                                         gen.string(token),
-                                         gen.string(diff_chunk)))
+            count += 1
+            self.send(gen.tuple('textdelta-chunk',
+                                gen.string(token),
+                                gen.string(diff_chunk)))
+            if count > 2:
+                print "send chunk %d %d" % (count, len(diff_chunk))
             diff_chunk = encoder.get_chunk()
         csum = encoder.get_md5()
 
@@ -209,7 +226,7 @@ class Update(Command):
             prev_contents.close()
         contents.close()
 
-        self.link.send_msg(gen.tuple('textdelta-end', gen.string(token)))
+        self.send(gen.tuple('textdelta-end', gen.string(token)))
 
         prev_props = {}
         for name, value in prev_pl:
@@ -222,19 +239,19 @@ class Update(Command):
                     continue
                 del prev_props[name]
 
-            self.link.send_msg(gen.tuple('change-file-prop',
-                                         gen.string(token),
-                                         gen.string(name),
-                                         gen.list(gen.string(value))))
+            self.send(gen.tuple('change-file-prop',
+                                gen.string(token),
+                                gen.string(name),
+                                gen.list(gen.string(value))))
 
         for name in prev_props.keys():
-            self.link.send_msg(gen.tuple('change-file-prop',
-                                         gen.string(token),
-                                         gen.string(name),
-                                         gen.list()))
+            self.send(gen.tuple('change-file-prop',
+                                gen.string(token),
+                                gen.string(name),
+                                gen.list()))
 
-        self.link.send_msg(gen.tuple('close-file', gen.string(token),
-                                     gen.list(gen.string(csum))))
+        self.send(gen.tuple('close-file', gen.string(token),
+                            gen.list(gen.string(csum))))
 
     @cmd_step
     def send_update(self):
@@ -259,9 +276,31 @@ class Update(Command):
 
         self.link.send_msg(gen.tuple('target-rev', rev))
 
-        contents = repos.get_files(self.link.url, rev)
-        self.update_dir('', rev, path, [], contents)
+        self.sendq = Queue.Queue()
+        self.waitq = Queue.Queue()
 
+        thread = threading.Thread(target=send_thread,
+                                  args=(self.link, self.sendq, self.waitq))
+        thread.start()
+
+        import time
+        t1 = time.time()
+        print "get contents"
+        contents = repos.get_files(self.link.url, rev)
+        t2 = time.time()
+        print t2 - t1
+        print "start sending"
+        self.update_dir('', rev, path, [], contents)
+        print "all sends now queued"
+        t3 = time.time()
+        print t3 - t2
+        print t3 - t1
+
+        self.sendq.put(None)
+        print "wait for sending thread"
+        self.waitq.get()
+
+        print "send close-edit message"
         self.link.send_msg(gen.tuple('close-edit'))
         msg = parse.msg(self.link.read_msg())
         if msg[0] != 'success':
