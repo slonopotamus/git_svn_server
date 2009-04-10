@@ -57,7 +57,7 @@ class CramMd5Auth(AuthMethod):
         resp = self.get_response()
         username, pass_hash = resp.rsplit(' ', 1)
 
-        password = self.auth_db.get_password(username)
+        password = str(self.auth_db.get_password(username))
         if password is None:
             raise AuthFailure(gen.string('unknown user'))
 
