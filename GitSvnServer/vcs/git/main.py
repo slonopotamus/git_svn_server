@@ -3,7 +3,6 @@ from email.utils import parseaddr
 import os
 import re
 import time
-import uuid
 
 from GitSvnServer import repos
 from GitSvnServer.errors import *
@@ -36,7 +35,14 @@ class GitCommit (object):
         self.ref = ref
         self.parent = parent
         self.prefix = prefix
+        self.dirs = {}
         self.files = {}
+
+    def add_dir(self, path, original=(None, None)):
+        self.dirs[path] = original
+
+    def open_dir(self, path, rev=None):
+        self.dirs[path] = None, None
 
     def file_complete(self, path, sha1):
         self.files.setdefault(path, {})['sha1'] = sha1
@@ -202,6 +208,39 @@ class Git (repos.Repos):
                              time.gmtime(when + tz_secs))
 
         return tree, parents, name, email, date, msg
+
+    def __tag_info(self, sha1):
+        parents = []
+
+        obj = self.__get_object(sha1)
+        data = obj.read()
+        obj.close()
+
+        c = 0
+        for line in data.split('\n'):
+            c += 1
+            if line == '':
+                break
+            elif line.startswith('object'):
+                obj = line[6:].strip()
+            elif line.startswith('type'):
+                type = line[4:].strip()
+            elif line.startswith('tagger'):
+                author = line[6:-16].strip()
+                name, email = parseaddr(author)
+                when = int(line[-16:-6].strip())
+                tz = int(line[-5:].strip())
+            elif line.startswith('tag'):
+                tag_name = line[3:].strip()
+
+        msg = '\n'.join(data[c:])
+
+        tz_secs = 60 * (60 * (tz/100) + (tz%100))
+
+        date = time.strftime('%Y-%m-%dT%H:%M:%S.000000Z',
+                             time.gmtime(when + tz_secs))
+
+        return obj, type, tag_name, name, email, date, msg
 
     def __get_file_contents(self, mode, sha):
         contents = self.__get_object(sha)
@@ -544,15 +583,7 @@ class Git (repos.Repos):
 
         return file_data[path]
 
-    def start_commit(self, url):
-        ref, path = self.__map_url(url)
-
-        cmd = '--bare rev-parse %s' % ref
-        parent = self.__get_git_data(cmd)[0]
-
-        return GitCommit(self, ref, parent, path)
-
-    def complete_commit(self, commit, msg):
+    def do_commit(self, commit, msg):
         orig_index_file = os.environ.get('GIT_INDEX_FILE', '')
         orig_author = os.environ.get('GIT_AUTHOR_NAME', ''), \
                       os.environ.get('GIT_AUTHOR_EMAIL', '')
@@ -604,18 +635,8 @@ class Git (repos.Repos):
         commit_sha = ct.read().strip()
         ct.close()
 
-        ref = 'refs/svnserver/%s' % uuid.uuid4()
-        cmd = '--bare update-ref -m "svn commit" %s %s' % (ref, commit_sha)
+        cmd = 'push . %s:%s' % (commit_sha, commit.ref)
         self.__get_git_data(cmd)
-
-        cmd = 'push . %s:%s' % (ref, commit.ref)
-        self.__get_git_data(cmd)
-
-        cmd = '--bare update-ref -d %s %s' % (ref, commit_sha)
-        self.__get_git_data(cmd)
-
-        ref, rev = self.map.get_ref_rev(commit_sha)
-        tree, parents, name, email, date, msg = self.__commit_info(commit_sha)
 
         os.environ['GIT_INDEX_FILE'] = orig_index_file
         os.environ['GIT_AUTHOR_NAME'] = orig_author[0]
@@ -623,6 +644,129 @@ class Git (repos.Repos):
         os.environ['GIT_COMMITTER_NAME'] = orig_committer[0]
         os.environ['GIT_COMMITTER_EMAIL'] = orig_committer[0]
 
+        return commit_sha
+
+    def do_tag(self, name, url, rev, msg):
+        ref, path = self.__map_url(url)
+        sha1 = self.map.find_commit(ref, rev)
+
+        print "create tag %s from %s@%d" % (name, url, rev)
+        print "create tag %s from %s[%s]" % (name, ref, sha1[:8])
+
+        uname, email = self.auth_db.get_user_details(self.username)
+
+        timestamp = time.time()
+        now = time.localtime(timestamp)
+        # Calculate timezone offset, based on whether the local zone has
+        # daylight savings time, and whether DST is in effect.
+        if time.daylight and now[-1]:
+            offset = time.altzone
+        else:
+            offset = time.timezone
+        hours, minutes = divmod(abs(offset), 3600)
+        # Remember offset is in seconds west of UTC, but the timezone is in
+        # minutes east of UTC, so the signs differ.
+        if offset > 0:
+            sign = '-'
+        else:
+            sign = '+'
+        date = '%d %s%02d%02d' % (int(timestamp), sign, hours, minutes // 60)
+
+        import sys
+        mktag = GitData(self.config.location, 'mktag')
+        mktag.write('object %s\n' % sha1)
+        mktag.write('type commit\n')
+        mktag.write('tag %s\n' % name)
+        mktag.write('tagger %s <%s> %s\n' % (uname, email, date))
+        if len(msg) > 0:
+            mktag.write('\n%s\n' % msg)
+        mktag.close_stdin()
+        tag_sha = mktag.read().strip()
+        mktag.close()
+
+        cmd = 'push . %s:%s' % (tag_sha, 'refs/tags/%s' % name)
+        self.__get_git_data(cmd)
+
+        print "created refs/tags/%s[%s]" % (name, tag_sha[:8])
+
+        return tag_sha
+
+    def do_branch(self, name, url, rev, msg):
+        ref, path = self.__map_url(url)
+        sha1 = self.map.find_commit(ref, rev)
+
+        print "create branch %s from %s@%d" % (name, url, rev)
+        print "create branch %s from %s[%s]" % (name, ref, sha1[:8])
+
+        orig_index_file = os.environ.get('GIT_INDEX_FILE', '')
+        orig_author = os.environ.get('GIT_AUTHOR_NAME', ''), \
+                      os.environ.get('GIT_AUTHOR_EMAIL', '')
+        orig_committer = os.environ.get('GIT_COMMITTER_NAME', ''), \
+                         os.environ.get('GIT_COMMITTER_EMAIL', '')
+
+        os.environ['GIT_INDEX_FILE'] = 'svnserver/tmp-index'
+
+        if self.username is not None:
+            uname, email = self.auth_db.get_user_details(self.username)
+
+            os.environ['GIT_AUTHOR_NAME'] = uname
+            os.environ['GIT_AUTHOR_EMAIL'] = email
+            os.environ['GIT_COMMITTER_NAME'] = uname
+            os.environ['GIT_COMMITTER_EMAIL'] = email
+
+        tree, p, n, e, d, m = self.__commit_info(sha1)
+
+        cmd = '--bare commit-tree %s -p %s' % (tree, sha1)
+        print cmd
+        ct = GitData(self.config.location, cmd)
+        ct.write(msg)
+        ct.close_stdin()
+        commit_sha = ct.read().strip()
+        ct.close()
+
+        print "create commit", commit_sha
+
+        cmd = 'push . %s:%s' % (commit_sha, 'refs/heads/%s' % name)
+        print cmd
+        print self.__get_git_data(cmd)
+
+        os.environ['GIT_INDEX_FILE'] = orig_index_file
+        os.environ['GIT_AUTHOR_NAME'] = orig_author[0]
+        os.environ['GIT_AUTHOR_EMAIL'] = orig_author[0]
+        os.environ['GIT_COMMITTER_NAME'] = orig_committer[0]
+        os.environ['GIT_COMMITTER_EMAIL'] = orig_committer[0]
+
+        return commit_sha
+
+    def start_commit(self, url):
+        ref, path = self.__map_url(url)
+
+        print 'ref: %s, path: %s' % (ref, path)
+
+        cmd = '--bare rev-parse %s' % ref
+        parent = self.__get_git_data(cmd)[0]
+
+        return GitCommit(self, ref, parent, path)
+
+    def complete_commit(self, commit, msg):
+        if commit.ref is None:
+            print 'hmmm', commit.dirs, commit.files
+
+            # TODO: if we keep the configurable layout, then we need to do
+            # lookups here to figure out where tags and branches live ...
+            for path, (url, rev) in commit.dirs.items():
+                if path.startswith('tags/'):
+                    sha = self.do_tag(path[5:], url, rev, msg)
+                    o, t, tn, n, email, date, m = self.__tag_info(sha)
+                elif path.startswith('branches/'):
+                    sha = self.do_branch(path[9:], url, rev, msg)
+                    t, p, n, email, date, m = self.__commit_info(sha)
+
+        else:
+            sha = self.do_commit(commit, msg)
+            t, p, n, email, date, m = self.__commit_info(sha)
+
+        ref, rev = self.map.get_ref_rev(sha)
         return rev, date, email, ""
 
     def abort_commit(self, commit):

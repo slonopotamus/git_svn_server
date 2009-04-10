@@ -7,6 +7,7 @@ import sys
 
 sys.stdout = open('/tmp/noddy.log', 'a')
 sys.stderr = sys.stdout
+print "started"
 
 
 def register_transaction(action, ref, sha1, origin=""):
@@ -32,6 +33,50 @@ def get_rev_list(old, new):
     return sha1s
 
 
+def get_tag_origin(sha1):
+    origin = ''
+
+    cmd = 'git cat-file tag %s' % sha1
+    _in, out, err = os.popen3(cmd)
+
+    for line in out:
+        if line.startswith('object'):
+            origin = line[6:].strip()
+
+    _in.close()
+    out.close()
+    err.close()
+
+    return origin
+
+
+def get_branch_origin(sha1):
+    origin = ''
+
+    cmd = 'git cat-file commit %s' % sha1
+    _in, out, err = os.popen3(cmd)
+
+    for line in out:
+        if line.startswith('parent'):
+            origin = line[6:].strip()
+
+    _in.close()
+    out.close()
+    err.close()
+
+    return origin
+
+
+def new_ref(ref, sha1):
+    print "new ref %s (%s)" % (ref, sha1[:8])
+    if ref.startswith('refs/tags/'):
+        print "  new tag %s" % ref
+        register_transaction('tag', ref, sha1, get_tag_origin(sha1))
+    elif ref.startswith('refs/heads/'):
+        print "  new branch %s" % ref
+        register_transaction('branch', ref, sha1, get_branch_origin(sha1))
+
+
 def update_ref(ref, old, new):
     print "update ref %s %s->%s" % (ref, old[:8], new[:8])
     for commit in get_rev_list(old, new):
@@ -47,12 +92,14 @@ def main():
 
     for line in sys.stdin:
         old, new, ref = [x.strip() for x in line.split(' ', 2)]
-        update_ref(ref, old, new)
+        if old == '0' * 40:
+            new_ref(ref, new)
+        else:
+            update_ref(ref, old, new)
 
     cursor.close()
     conn.commit()
     conn.close()
-
 
 
 if __name__ == "__main__":

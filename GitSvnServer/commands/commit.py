@@ -104,10 +104,13 @@ class Commit (Command):
         print "edit: delete_entry"
 
     def add_dir(self, path, parent_token, child_token, copy_path, copy_rev):
+        print "edit: add_dir -", path, parent_token, child_token, copy_path, copy_rev
         Dir(path, child_token, parent_token)
+        self.commit.add_dir(path, original=(copy_path, copy_rev))
 
     def open_dir(self, path, parent_token, child_token, rev):
         Dir(path, child_token, parent_token, rev)
+        self.commit.open_dir(path)
 
     def change_dir_prop(self, dir_token, name, value):
         Dir.dirs[dir_token].set_prop(name, value)
