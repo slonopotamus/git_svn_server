@@ -39,19 +39,25 @@ class GitData (object):
         return data
 
     def write(self, data):
+        if self._data is None:
+            self.open()
+
         self._in.write(data)
 
     def flush(self):
-        self._in.flush()
+        if self._data is not None:
+            self._in.flush()
 
     def close_stdin(self):
-        self._in.close()
+        if self._data is not None:
+            self._in.close()
 
     def close(self):
-        self._in.close()
-        self._data.close()
-        self._err.close()
-        self._data = None
+        if self._data is not None:
+            self._in.close()
+            self._data.close()
+            self._err.close()
+            self._data = None
 
     def reopen(self):
         self.close()
