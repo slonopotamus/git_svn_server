@@ -142,7 +142,7 @@ class TestSuite (Suite):
         os.chdir(self.scratch)
         self.server = start_server(cfg_file, self.pidfile, self.ip, self.port)
         os.chdir(cwd)
-        time.sleep(0.2)
+        time.sleep(0.5)
 
     def stop_server(self):
         if self.server is None:
