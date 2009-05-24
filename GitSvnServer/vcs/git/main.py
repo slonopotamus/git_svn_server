@@ -182,11 +182,11 @@ class Git (repos.Repos):
         parents = []
 
         obj = self.__get_object(sha1)
-        data = obj.read()
+        data = obj.read().split('\n')
         obj.close()
 
         c = 0
-        for line in data.split('\n'):
+        for line in data:
             c += 1
             if line == '':
                 break
