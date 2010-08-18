@@ -6,7 +6,7 @@ from CleverSheep.Test.Tester import *
 
 from lib import TestSuite
 
-class SimpleTest (TestSuite):
+class Test_01_Simple (TestSuite):
     """Basic test of git-svnserver functionality"""
 
     @test
