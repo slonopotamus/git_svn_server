@@ -264,6 +264,13 @@ class Git (repos.Repos):
 
         return changed, by, at
 
+    def __get_tag_changed(self, sha1):
+        ref, changed = self.map.get_ref_rev(sha1)
+        o, t, tn, n, by, at, m = self.__tag_info(sha1)
+
+        return changed, by, at
+
+
     def __get_changed_paths(self, sha1, path=''):
         cmd = 'diff-tree --name-status -r %s^ %s -- %s' % (sha1, sha1, path)
 
@@ -335,9 +342,32 @@ class Git (repos.Repos):
 
         return self.__map_type(data[0][1])
 
+    def __stat_tags_dir(self, rev):
+        sha1 = self.map.get_commit_by_pattern('refs/tags/%', rev, True)
+        if sha1 is None:
+            return rev, None, self.map.created_date()
+        return self.__get_tag_changed(sha1)
+
+    def __stat_branches_dir(self, rev):
+        sha1 = self.map.get_commit_by_pattern('refs/heads/%', rev)
+        if sha1 is None:
+            return rev, None, self.map.created_date()
+        return self.__get_last_changed(sha1, '')
+
     def stat(self, url, rev):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
+
+        if ref is None and path == 'tags':
+            # TODO: This ought to be using the path mapping, not assuming that
+            # tags are in <root>/tags ...
+            changed, by, at = self.__stat_tags_dir(rev)
+            return '', 'dir', 0, changed, by, at
+
+        if ref is None and path == 'branches':
+            # TODO: do the branches dir detection properly ...
+            changed, by, at = self.__stat_branches_dir(rev)
+            return '', 'dir', 0, changed, by, at
 
         if ref is None and path == '':
             # We have been asked about the respository root, we don't have one
