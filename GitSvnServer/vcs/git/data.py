@@ -78,7 +78,8 @@ class FakeData (object):
         return self._string.read(l)
 
     def close(self):
-        self._string.close()
+        if self._string is not None:
+            self._string.close()
         self._string = None
 
     def reopen(self):
