@@ -109,6 +109,26 @@ class GitMap (GitDb):
 
         return None
 
+    def get_commit_by_pattern(self, pattern, rev=None, tag_sha1=False):
+        conn = self.connect()
+        sql = 'SELECT revision, action, sha1, origin FROM transactions WHERE ' \
+              'ref like ? AND revision <= ? ORDER BY revision DESC'
+        row = conn.execute(sql, (pattern, rev)).fetchone()
+        conn.close()
+
+        if row is None:
+            return None
+
+        if row['action'] in ['commit', 'branch', 'merge']:
+            return row['sha1']
+
+        if row['action'] in ['tag']:
+            if tag_sha1:
+                return row['sha1']
+            return row['origin']
+
+        return None
+
     def get_commits(self, ref, frm, to, order='ASC'):
         conn = self.connect()
         sql = 'SELECT revision, action, sha1, origin FROM transactions WHERE ' \
