@@ -69,10 +69,10 @@ class GitMap (GitDb):
             return 0
         return int(row['revision'])
 
-    def find_commit(self, ref, rev):
+    def find_commit(self, ref, rev, tag_sha1=False):
         conn = self.connect()
-        sql = 'SELECT revision, action, sha1 FROM transactions WHERE ref = ? ' \
-              'AND revision <= ? ORDER BY revision DESC'
+        sql = 'SELECT revision, action, sha1, origin FROM transactions WHERE ' \
+              'ref = ? AND revision <= ? ORDER BY revision DESC'
         row = conn.execute(sql, (ref, rev)).fetchone()
         conn.close()
 
@@ -82,11 +82,16 @@ class GitMap (GitDb):
         if row['action'] in ['commit', 'branch', 'merge']:
             return row['sha1']
 
+        if row['action'] in ['tag']:
+            if tag_sha1:
+                return row['sha1']
+            return row['origin']
+
         return None
 
-    def get_commit_by_rev(self, rev):
+    def get_commit_by_rev(self, rev, tag_sha1=False):
         conn = self.connect()
-        sql = 'SELECT revision, action, sha1 FROM transactions WHERE ' \
+        sql = 'SELECT revision, action, sha1, origin FROM transactions WHERE ' \
               'revision = ?'
         row = conn.execute(sql, (rev,)).fetchone()
         conn.close()
@@ -96,6 +101,11 @@ class GitMap (GitDb):
 
         if row['action'] in ['commit', 'branch', 'merge']:
             return row['sha1']
+
+        if row['action'] in ['tag']:
+            if tag_sha1:
+                return row['sha1']
+            return row['origin']
 
         return None
 
