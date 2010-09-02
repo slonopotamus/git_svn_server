@@ -140,6 +140,13 @@ class Git (repos.Repos):
     def __get_object(self, sha1):
         return self.cat_file.get_object(sha1)
 
+    def __list_tags(self):
+        return self.__get_git_data('tag -l')
+
+    def __list_branches(self):
+        refs = self.__get_git_data('for-each-ref --format="%(refname)" refs/heads')
+        return [x[11:] for x in refs if x.startswith('refs/heads/')]
+
     def __ls_tree(self, sha1, path, options=''):
         results = []
 
@@ -405,6 +412,40 @@ class Git (repos.Repos):
         sha1 = self.map.find_commit(ref, rev)
 
         ls_data = []
+
+        if ref is None and path == 'tags':
+            # TODO: do the tags dir detection properly ...
+            tags = self.__list_tags()
+            for name in tags:
+                sha1 = self.map.find_commit('refs/tags/%s' % name, rev, True)
+                changed, by, at = None, None, None
+                if sha1 is None:
+                    # lightweight tags don't have their own sha1 ...
+                    sha1 = self.map.find_commit('refs/tags/%s' % name, rev)
+                    if sha1 is None:
+                        continue
+                    if include_changed:
+                        changed, by, at = self.__get_last_changed(sha1, '')
+                else:
+                    if include_changed:
+                        changed, by, at = self.__get_tag_changed(sha1)
+                ls_data.append((name, 'dir', 0, changed, by, at))
+            return ls_data
+
+        if ref is None and path == 'branches':
+            # TODO: do the branches dir detection properly ...
+            branches = self.__list_branches()
+            for name in branches:
+                if name == "master":
+                    continue
+                sha1 = self.map.find_commit('refs/heads/%s' % name, rev)
+                changed, by, at = None, None, None
+                if sha1 is None:
+                    continue
+                if include_changed:
+                    changed, by, at = self.__get_last_changed(sha1, '')
+                ls_data.append((name, 'dir', 0, changed, by, at))
+            return ls_data
 
         if ref is None and path == '':
             if include_changed:
