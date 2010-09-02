@@ -48,7 +48,7 @@ class Encoder (object):
         self.src_offset = 0
         self.orig_offset = 0
         self.complete = False
-        self.chunk_size = 1024 * 1024
+        self.chunk_size = 102400
         self.md5 = md5.new()
 
     def header(self):
