@@ -406,6 +406,20 @@ class Git (repos.Repos):
 
         ls_data = []
 
+        if ref is None and path == '':
+            if include_changed:
+                changed, by, at = self.__stat_tags_dir(rev)
+            ls_data.append(('tags', 'dir', 0, changed, by, at))
+            if include_changed:
+                changed, by, at = self.__stat_branches_dir(rev)
+            ls_data.append(('branches', 'dir', 0, changed, by, at))
+            sha1 = self.map.find_commit('refs/heads/master', rev)
+            changed, by, at = None, None, None
+            if include_changed:
+                changed, by, at = self.__get_last_changed(sha1, '')
+            ls_data.append(('trunk', 'dir', 0, changed, by, at))
+            return ls_data
+
         if len(path) > 0 and path[-1] != '/':
             path += '/'
 
