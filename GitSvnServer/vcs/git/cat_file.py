@@ -14,8 +14,10 @@ class GitObject (object):
         self.cat_file.data.write('%s\n' % self.sha1)
         self.cat_file.data.flush()
 
-        c = ''
-        while len(c) == 0 or c[-1] != '\n':
+        c = '\n'
+        while c[-1] == '\n':
+            c = self.cat_file.read(1)
+        while c[-1] != '\n':
             c += self.cat_file.read(1)
         c = c[:-1]
 
@@ -27,6 +29,9 @@ class GitObject (object):
 
         self.type, size = info.split(' ', 1)
         self.size = int(size)
+
+    def tell(self):
+        return self._read
 
     def read(self, l=None):
         if self.type == '':
@@ -47,9 +52,6 @@ class GitObject (object):
     def close(self):
         while self._read < self.size:
             data = self.read(min(8192, self.size - self.read))
-        if self._read == self.size:
-            self.cat_file.read(1)
-            self._read += 1
 
 
 class GitCatFile (object):
