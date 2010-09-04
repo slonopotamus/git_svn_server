@@ -209,7 +209,7 @@ class Update(Command):
         if 'svndiff1' in self.link.client_caps:
             diff_version = 1
 
-        encoder = svndiff.Encoder(contents, version=diff_version)
+        encoder = svndiff.Encoder(contents, prev_contents, version=diff_version)
 
         diff_chunk = encoder.get_chunk()
         count = 0
