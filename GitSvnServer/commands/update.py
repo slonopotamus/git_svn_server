@@ -28,6 +28,7 @@ class Update(Command):
 
     def report_delete_path(self, path):
         print "report: delete path"
+        self.deleted_paths.append(path)
 
     @cmd_step
     def auth(self):
@@ -36,6 +37,7 @@ class Update(Command):
     @cmd_step
     def get_reports(self):
         self.prev_revs = {'' : (None, True)}
+        self.deleted_paths = []
         raise ChangeMode('report')
 
     def get_parent_path(self, path):
@@ -166,6 +168,8 @@ class Update(Command):
                     entry_path = name
                     if len(path) > 0:
                         entry_path = '/'.join((path, name))
+                    if entry_path in self.deleted_paths:
+                        continue
                     self.send(gen.tuple('delete-entry',
                                         gen.string(entry_path),
                                         gen.list(prev_rev),
