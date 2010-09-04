@@ -102,6 +102,7 @@ class Commit (Command):
 
     def delete_entry(self, path, rev, dir_token):
         print "edit: delete_entry"
+        self.commit.remove_path(path)
 
     def add_dir(self, path, parent_token, child_token, copy_path, copy_rev):
         print "edit: add_dir -", path, parent_token, child_token, copy_path, copy_rev
