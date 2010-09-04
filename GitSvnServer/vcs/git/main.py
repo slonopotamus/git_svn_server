@@ -705,7 +705,17 @@ class Git (repos.Repos):
         cmd = '--bare update-index --add --index-info'
         ui = GitData(self.config.location, cmd)
         for path, data in commit.files.items():
-            sha = data['sha1']
+            if 'sha1' in data:
+                sha = data['sha1']
+            else:
+                # The file contents haven't changed, so we have to look up the
+                # old sha1 for this path ...
+                fdata = self.__ls_tree(commit.parent, path)
+                if len(fdata) != 1:
+                    print "failed to get existing sha1!"
+                    continue
+                m, t, sha, s, gp = fdata[0]
+
             props = data.get('props', {})
             mode = '100644'
 
