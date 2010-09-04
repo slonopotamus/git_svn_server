@@ -550,6 +550,18 @@ class Git (repos.Repos):
 
         return self._path_changed(old_sha, new_sha, path)
 
+    def paths_different(self, url, rev, prev_url, prev_rev):
+        ref, path = self.__map_url(url)
+        prev_ref, prev_path = self.__map_url(prev_url)
+
+        if path != prev_path:
+            raise(foo)
+
+        old_sha = self.map.find_commit(ref, rev)
+        new_sha = self.map.find_commit(prev_ref, prev_rev)
+
+        return self._path_changed(old_sha, new_sha, path)
+
     def get_file(self, url, rev):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
