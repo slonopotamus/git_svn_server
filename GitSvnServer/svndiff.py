@@ -1,4 +1,5 @@
 
+import difflib
 import md5
 import sys
 import zlib
@@ -15,7 +16,7 @@ def encode_int(i):
     return s
 
 
-def encode_new(data, version = 0):
+def encode_new(data, sofs, version = 0):
     i = chr(128) + encode_int(len(data))
 
     tv_len = len(data)
@@ -27,7 +28,7 @@ def encode_new(data, version = 0):
             zdata = data
         data = encode_int(len(data)) + zdata
 
-    w = encode_int(0)
+    w = encode_int(sofs)
     w += encode_int(0)
     w += encode_int(tv_len)
     w += encode_int(len(i))
@@ -39,8 +40,53 @@ def encode_new(data, version = 0):
     return w
 
 
+def encode_delta(source, dest, sofs, version = 0):
+    data = ""
+    i = ""
+
+    ofs = 0
+    diff = difflib.SequenceMatcher(None, source, dest)
+    for tag, i1, i2, j1, j2 in diff.get_opcodes():
+        if tag == 'replace':
+            ofs += i2 - i1
+            data += dest[j1:j2]
+            i += chr(128) + encode_int(j2 - j1)
+            print "replace %d bytes with new" % (j2 - j1)
+        elif tag == 'delete':
+            ofs += i2 - i1
+        elif tag == 'insert':
+            data += dest[j1:j2]
+            i += chr(128) + encode_int(j2 - j1)
+            print "insert %d bytes from new" % (j2 - j1)
+        elif tag == 'equal':
+            i += chr(0) + encode_int(i2 - i1) + encode_int(ofs)
+            ofs += i2 - i1
+            print  "copy %d bytes from source" % (i2 - i1)
+
+    if version == 1:
+        zi = zlib.compress(i, 9)
+        if len(zi) >= len(i):
+            zi = i
+        i = encode_int(len(i)) + zi
+        zdata = zlib.compress(data, 9)
+        if len(zdata) >= len(data):
+            zdata = data
+        data = encode_int(len(data)) + zdata
+
+    w = encode_int(sofs)
+    w += encode_int(len(source))
+    w += encode_int(len(dest))
+    w += encode_int(len(i))
+    w += encode_int(len(data))
+    w += i
+
+    w += data
+
+    return w
+
+
 class Encoder (object):
-    def __init__(self, source, version=0, original=None):
+    def __init__(self, source, original=None, version=0):
         self.version = version
         self.source = source
         self.original = original
@@ -69,16 +115,33 @@ class Encoder (object):
             data = self.source.read(self.chunk_size)
             if len(data) < self.chunk_size:
                 self.complete = True
+                self.source.close()
             if len(data) == 0:
                 return None
-            self.src_offset += len(data)
             self.md5.update(data)
-            return encode_new(data, self.version)
+            return encode_new(data, self.orig_offset, self.version)
 
-        print >> sys.stderr, "not implemented yet"
-        sys.exit(1)
+        ddata = self.source.read(self.chunk_size)
+        sdata = self.original.read(self.chunk_size)
 
-        return ""
+        if len(ddata) < self.chunk_size:
+            self.complete = True
+            self.source.close()
+            self.original.close()
+
+        if len(ddata) == 0:
+            return None
+
+        if len(sdata) < self.chunk_size:
+            self.original.close()
+            self.original = None
+
+        sofs = self.orig_offset
+
+        self.orig_offset += len(sdata)
+        self.md5.update(ddata)
+
+        return encode_delta(sdata, ddata, sofs, self.version)
 
 
 def get_svndiff_int(data):
