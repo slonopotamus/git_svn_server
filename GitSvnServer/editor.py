@@ -30,7 +30,7 @@ def open_root(command, args):
 @edit_func('delete-entry')
 def delete_entry(command, args):
     path = parse.string(args[0])
-    rev = int(args[1])
+    rev = int(args[1][0])
     dir_token = parse.string(args[2])
 
     command.delete_entry(path, rev, dir_token)
