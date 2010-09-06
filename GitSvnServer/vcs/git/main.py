@@ -707,8 +707,6 @@ class Git (repos.Repos):
         cmd = '--bare read-tree %s' % commit.parent
         self.__get_git_data(cmd)
 
-        print commit.files
-
         cmd = '--bare update-index --add --index-info'
         ui = GitData(self.config.location, cmd)
         for path, data in commit.files.items():
