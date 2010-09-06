@@ -3,6 +3,7 @@ from email.utils import parseaddr
 import os
 import re
 import time
+import uuid
 
 from GitSvnServer import repos
 from GitSvnServer.errors import *
@@ -690,7 +691,10 @@ class Git (repos.Repos):
         orig_committer = os.environ.get('GIT_COMMITTER_NAME', ''), \
                          os.environ.get('GIT_COMMITTER_EMAIL', '')
 
-        os.environ['GIT_INDEX_FILE'] = 'svnserver/tmp-index'
+        # each connection needs its own index file, so that two connection doing
+        # commits simulataneously don't corrupt each other ...
+        index_file = 'svnserver/%s.idx' % uuid.uuid4()
+        os.environ['GIT_INDEX_FILE'] = index_file
 
         if self.username is not None:
             name, email = self.auth_db.get_user_details(self.username)
@@ -751,6 +755,10 @@ class Git (repos.Repos):
 
         cmd = 'push . %s:%s' % (commit_sha, commit.ref)
         self.__get_git_data(cmd)
+
+        index_file = os.path.join(self.config.location, index_file)
+        if os.path.exists(index_file):
+            os.remove(index_file)
 
         os.environ['GIT_INDEX_FILE'] = orig_index_file
         os.environ['GIT_AUTHOR_NAME'] = orig_author[0]
