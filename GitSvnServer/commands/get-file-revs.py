@@ -44,6 +44,7 @@ class GetFileRevs (SimpleCommand):
         if 'svndiff1' in self.link.client_caps:
             diff_version = 1
 
+        prev_rev = None
         for entry in repos.log(url, [''], start_rev, end_rev, end_rev):
             changed, rev, author, date, msg, has_children, revprops = entry
 
@@ -55,7 +56,15 @@ class GetFileRevs (SimpleCommand):
             self.link.send_msg(gen.list(*response))
 
             r, p, contents = repos.get_file(url, rev)
-            encoder = svndiff.Encoder(contents, version=diff_version)
+            if prev_rev is None:
+                pcontents = None
+            else:
+                # Get the previous contents (as independant file contents -
+                # hence the True) to produce a diff
+                r, p, pcontents = repos.get_file(url, prev_rev, True)
+            prev_rev = rev
+
+            encoder = svndiff.Encoder(contents, pcontents, version=diff_version)
             diff_chunk = encoder.get_chunk()
             while diff_chunk is not None:
                 self.link.send_msg(gen.string(diff_chunk))
