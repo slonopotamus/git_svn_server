@@ -54,12 +54,40 @@ class GitObject (object):
             data = self.read(min(8192, self.size - self.read))
 
 
+class IndepGitObject (object):
+    def __init__(self, location, sha1):
+        self.sha1 = sha1
+        self.location = location
+        self.data = None
+        self.open()
+
+    def open(self):
+        if self.data is not None:
+            self.data.close()
+        self.data = GitData(self.location, 'cat-file -p %s' % self.sha1)
+        self.data.open()
+
+    def tell(self):
+        return self.data.tell()
+
+    def read(self, l=-1):
+        return self.data.read(l)
+
+    def close(self):
+        if self.data is not None:
+            self.data.close()
+        self.data = None
+
+
 class GitCatFile (object):
     def __init__(self, location):
+        self.location = location
         self.data = GitData(location, 'cat-file --batch')
         self.data.open()
 
-    def get_object(self, sha1):
+    def get_object(self, sha1, indep=False):
+        if indep:
+            return IndepGitObject(self.location, sha1)
         return GitObject(self, sha1)
 
     def read(self, l=-1):

@@ -193,7 +193,11 @@ class Switch(Command):
             contents.close()
             return
         else:
-            prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev)
+            # we want prev_contents to be independant of contents - hence the
+            # True in the call to get_file (asking for independant file
+            # contents)
+            prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev,
+                                                              True)
 
         new_file = prev_contents is None
 

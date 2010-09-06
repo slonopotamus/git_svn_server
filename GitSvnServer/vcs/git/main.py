@@ -141,8 +141,8 @@ class Git (repos.Repos):
     def get_latest_rev(self):
         return self.map.get_latest_rev()
 
-    def __get_object(self, sha1):
-        return self.cat_file.get_object(sha1)
+    def __get_object(self, sha1, indep=False):
+        return self.cat_file.get_object(sha1, indep)
 
     def __list_tags(self):
         return self.__get_git_data('tag -l')
@@ -253,8 +253,8 @@ class Git (repos.Repos):
 
         return obj, type, tag_name, name, email, date, msg
 
-    def __get_file_contents(self, mode, sha):
-        contents = self.__get_object(sha)
+    def __get_file_contents(self, mode, sha, indep_contents=False):
+        contents = self.__get_object(sha, indep_contents)
 
         if mode == '120000':
             link = 'link %s' % contents.read()
@@ -566,7 +566,7 @@ class Git (repos.Repos):
 
         return self._path_changed(old_sha, new_sha, path)
 
-    def get_file(self, url, rev):
+    def get_file(self, url, rev, indep_contents=False):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
@@ -585,7 +585,7 @@ class Git (repos.Repos):
 
         props = self.get_props(url, rev, mode=mode)
 
-        return rev, props, self.__get_file_contents(mode, sha)
+        return rev, props, self.__get_file_contents(mode, sha, indep_contents)
 
     def get_files(self, url, rev):
         ref, path = self.__map_url(url)
