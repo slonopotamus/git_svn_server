@@ -1,5 +1,6 @@
 
 from email.utils import parseaddr
+import json
 import os
 import re
 import time
@@ -486,6 +487,8 @@ class Git (repos.Repos):
                 name = name[len(path):]
             if name == '.gitignore':
                 continue
+            if name == '.gitprops':
+                continue
             ls_data.append((name, kind, size, changed, by, at))
 
         return ls_data
@@ -533,7 +536,7 @@ class Git (repos.Repos):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
-        props = []
+        props = self.__load_props(sha1, path)
 
         if path != '':
             if mode is not None:
@@ -602,9 +605,11 @@ class Git (repos.Repos):
         # find out what files exist in the requested commit under the given path
 
         paths = {}
+        prop_paths = {}
         for mode, type, sha, size, name in self.__ls_tree(sha1, path,
                                                           options='-r -t'):
             paths[name] = (type, mode, sha)
+            prop_paths[self.__prop_path(name)] = name
 
         # find out when the files discovered above last changed, and who made
         # that commit
@@ -638,6 +643,11 @@ class Git (repos.Repos):
             if line in paths and line not in changed_paths:
                 changed_paths[line] = commit
 
+            if line in prop_paths:
+                name = prop_paths[line]
+                if name not in changed_paths:
+                    changed_paths[name] = commit
+
             if len(changed_paths) == len(paths):
                 break
 
@@ -663,7 +673,8 @@ class Git (repos.Repos):
                 t, p, n, by, at, m = self.__commit_info(last_commit)
                 changed_cache[last_commit] = changed, by, at
 
-            props = self.__svn_internal_props(changed, by, at)
+            props = self.__load_props(last_commit, fpath)
+            props.extend(self.__svn_internal_props(changed, by, at))
             contents = []
 
             parent_name = parent
@@ -676,6 +687,9 @@ class Git (repos.Repos):
                 prop = 'svn:ignore', contents.read()
                 contents.close()
                 file_data.setdefault(parent, def_parent)[2].append(prop)
+                continue
+
+            if name == '.gitprops':
                 continue
 
             if type == 'blob':
@@ -691,6 +705,78 @@ class Git (repos.Repos):
             file_data.setdefault(parent, def_parent)[3].append(file_data[fpath])
 
         return file_data[path]
+
+    internal_props = [
+        'svn:executable',
+        'svn:ignore',
+        'svn:special',
+        'svn:entry:uuid',
+        'svn:entry:committed-rev',
+        'svn:entry:committed-date',
+        'svn:entry:last-author',
+    ]
+
+    def __prop_path(self, filepath):
+        dir, name = os.path.split(filepath)
+        if name == '':
+            name = '.gitprops'
+        return os.path.join(dir, '.gitprops', name)
+
+    def __load_props(self, commit, filepath):
+        if filepath.startswith('.gitprops'):
+            return []
+
+        path = self.__prop_path(filepath)
+
+        data = self.__ls_tree(commit, path)
+
+        if len(data) != 1:
+            return []
+
+        mode, type, sha, size, git_path = data[0]
+
+        if type != 'blob':
+            return []
+
+        contents = self.__get_file_contents(mode, sha, True)
+        props = json.loads(contents.read())
+        contents.close()
+
+        return list(props.items())
+
+    def __save_props(self, filepath, props):
+        path = self.__prop_path(filepath)
+
+        external_props = {}
+        for name, value in props.items():
+            if name in self.internal_props:
+                continue
+            external_props[name] = value
+
+        if len(external_props) == 0:
+            return '0', '0' * 40, path
+
+        data = json.dumps(external_props)
+
+        f = GitFile(location=self.config.location)
+        f.write(data)
+        sha1 = f.close()
+
+        return '100644', sha1, path
+
+    def __update_props(self, commit, filepath, propmods):
+        props = {}
+        done = []
+        for name, value in self.__load_props(commit, filepath):
+            if name not in propmods:
+                props[name] = value
+            elif propmods[name] is not None:
+                props[name] = propmods[name]
+            done.append(name)
+        for name in propmods:
+            if name not in done:
+                props[name] = propmods[name]
+        return self.__save_props(filepath, props)
 
     def do_commit(self, commit, msg):
         orig_index_file = os.environ.get('GIT_INDEX_FILE', '')
@@ -730,6 +816,9 @@ class Git (repos.Repos):
             ppath = os.path.join(path, '.gitignore')
             ui.write('100644 %s\t%s\n' % (sha, ppath))
 
+            pmode, psha, ppath = self.__update_props(commit.parent, path, props)
+            ui.write('%s %s\t%s\n' % (pmode, psha, ppath))
+
         for relpath, data in commit.files.items():
             path = os.path.join(commit.prefix, relpath)
 
@@ -749,6 +838,10 @@ class Git (repos.Repos):
                 m, t, sha, s, gp = fdata[0]
 
             props = data.get('props', {})
+
+            pmode, psha, ppath = self.__update_props(commit.parent, path, props)
+            ui.write('%s %s\t%s\n' % (pmode, psha, ppath))
+
             mode = '100644'
 
             if 'svn:special' in props:
