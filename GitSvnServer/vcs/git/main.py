@@ -47,10 +47,11 @@ class GitCommit (object):
         self.files.setdefault(path, {})['delete'] = True
 
     def add_dir(self, path, original=(None, None)):
-        self.dirs[path] = original
+        self.dirs.setdefault(path, {})['url'] = original[0]
+        self.dirs.setdefault(path, {})['rev'] = original[1]
 
     def open_dir(self, path, rev=None):
-        self.dirs[path] = None, None
+        self.dirs.setdefault(path, {})
 
     def file_complete(self, path, sha1):
         self.files.setdefault(path, {})['sha1'] = sha1
@@ -66,6 +67,9 @@ class GitCommit (object):
 
     def set_file_prop(self, path, name, value):
         self.files.setdefault(path, {}).setdefault('props', {})[name] = value
+
+    def set_dir_prop(self, path, name, value):
+        self.dirs.setdefault(path, {}).setdefault('props', {})[name] = value
 
 
 class Git (repos.Repos):
@@ -713,6 +717,19 @@ class Git (repos.Repos):
 
         cmd = '--bare update-index --add --index-info'
         ui = GitData(self.config.location, cmd)
+
+        for relpath, data in commit.dirs.items():
+            path = os.path.join(commit.prefix, relpath)
+
+            props = data.get('props', {})
+
+            f = GitFile(location=self.config.location)
+            f.write(props.get('svn:ignore', ''))
+            sha = f.close()
+
+            ppath = os.path.join(path, '.gitignore')
+            ui.write('100644 %s\t%s\n' % (sha, ppath))
+
         for relpath, data in commit.files.items():
             path = os.path.join(commit.prefix, relpath)
 
@@ -745,6 +762,7 @@ class Git (repos.Repos):
                 mode = '100755'
 
             ui.write('%s %s\t%s\n' % (mode, sha, path))
+
         ui.close()
 
         cmd = '--bare write-tree'
@@ -880,7 +898,9 @@ class Git (repos.Repos):
 
             # TODO: if we keep the configurable layout, then we need to do
             # lookups here to figure out where tags and branches live ...
-            for path, (url, rev) in commit.dirs.items():
+            for path, data in commit.dirs.items():
+                url = data.get('url', None)
+                rev = data.get('rev', None)
                 if path.startswith('tags/'):
                     sha = self.do_tag(path[5:], url, rev, msg)
                     o, t, tn, n, email, date, m = self.__tag_info(sha)

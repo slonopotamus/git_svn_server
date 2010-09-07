@@ -9,7 +9,8 @@ from GitSvnServer import parse, svndiff
 
 class Dir (object):
     dirs = {}
-    def __init__(self, path, token, parent_token=None, rev=None):
+    def __init__(self, commit, path, token, parent_token=None, rev=None):
+        self.commit = commit
         self.path = path
         self.token = token
         self.parent = None
@@ -24,8 +25,9 @@ class Dir (object):
 
         Dir.dirs[token] = self
 
-    def set_prop(name, value):
+    def set_prop(self, name, value):
         self.props[name] = value
+        self.commit.set_dir_prop(self.path, name, value)
 
     def add(self, file):
         name = file.path
@@ -98,7 +100,7 @@ class Commit (Command):
 
     def open_root(self, rev, root_token):
         print "edit: open_root"
-        self.root = Dir('', root_token)
+        self.root = Dir(self.commit, '', root_token)
 
     def delete_entry(self, path, rev, dir_token):
         print "edit: delete_entry"
@@ -106,11 +108,11 @@ class Commit (Command):
 
     def add_dir(self, path, parent_token, child_token, copy_path, copy_rev):
         print "edit: add_dir -", path, parent_token, child_token, copy_path, copy_rev
-        Dir(path, child_token, parent_token)
+        Dir(self.commit, path, child_token, parent_token)
         self.commit.add_dir(path, original=(copy_path, copy_rev))
 
     def open_dir(self, path, parent_token, child_token, rev):
-        Dir(path, child_token, parent_token, rev)
+        Dir(self.commit, path, child_token, parent_token, rev)
         self.commit.open_dir(path)
 
     def change_dir_prop(self, dir_token, name, value):
