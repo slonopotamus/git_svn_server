@@ -709,7 +709,9 @@ class Git (repos.Repos):
 
         cmd = '--bare update-index --add --index-info'
         ui = GitData(self.config.location, cmd)
-        for path, data in commit.files.items():
+        for relpath, data in commit.files.items():
+            path = os.path.join(commit.prefix, relpath)
+
             if 'delete' in data:
                 ui.write('%s %s\t%s\n' % ('0', '0'*40, path))
                 continue
