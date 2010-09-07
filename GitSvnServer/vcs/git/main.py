@@ -14,11 +14,13 @@ from db import *
 
 
 class GitFile (object):
-    def __init__(self, commit, path):
+    def __init__(self, commit=None, path=None, location=None):
         self.commit = commit
         self.path = path
+        if location is None:
+            location = commit.repos.config.location
         cmd = '--bare hash-object -w --stdin'
-        self.hash_object = GitData(commit.repos.config.location, cmd)
+        self.hash_object = GitData(location, cmd)
 
     def write(self, data):
         self.hash_object.write(data)
@@ -27,7 +29,9 @@ class GitFile (object):
         self.hash_object.close_stdin()
         sha1 = self.hash_object.read().strip()
         self.hash_object.close()
-        self.commit.file_complete(self.path, sha1)
+        if self.commit is not None:
+            self.commit.file_complete(self.path, sha1)
+        return sha1
 
 
 class GitCommit (object):
