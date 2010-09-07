@@ -220,14 +220,10 @@ class Update(Command):
         encoder = svndiff.Encoder(contents, prev_contents, version=diff_version)
 
         diff_chunk = encoder.get_chunk()
-        count = 0
         while diff_chunk is not None:
-            count += 1
             self.send(gen.tuple('textdelta-chunk',
                                 gen.string(token),
                                 gen.string(diff_chunk)))
-            if count > 2:
-                print "send chunk %d %d" % (count, len(diff_chunk))
             diff_chunk = encoder.get_chunk()
         csum = encoder.get_md5()
 
