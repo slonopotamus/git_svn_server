@@ -519,28 +519,23 @@ class Git (repos.Repos):
                 for tp in target_paths:
                     if not p.startswith(tp):
                         continue
+                    kind, tmod, pmod = 'file', False, False
                     if p == '.gitignore':
-                        changed.append(('/', c, None, None,
-                                        'dir', False, True))
+                        p, kind, pmod = '', 'dir', True
                     elif p.endswith('/.gitignore'):
-                        p = p[:-11]
-                        changed.append(('/' + p, c, None, None,
-                                        'dir', False, True))
-                    elif '/.gitprops/' in '/' + p:
-                        pth, name = ('/' + p).split('/.gitprops/')
-                        print 'gitprops: [%s] [%s]' % (pth, name)
-                        print '        : %s' % '/'.join((pth, name))
+                        p, kind, pmod = p[:-11], 'dir', True
+                    elif p.startswith('.gitprops'):
+                        p, pmod = p[10:], True
+                        if p == '.gitprops':
+                            p, kind = '', 'dir'
+                    elif '/.gitprops/' in p:
+                        pth, name = p.split('/.gitprops/')
+                        p, pmod = '/'.join((pth, name)), True
                         if name == '.gitprops':
-                            if pth == '':
-                                pth = '/'
-                            changed.append((pth, c, None, None,
-                                           'dir', False, True))
-                        else:
-                            changed.append(('/'.join((pth, name)), c, None,
-                                           None, 'file', False, True))
+                            p, kind = pth, 'dir'
                     else:
-                        changed.append(('/' + p, c, None, None,
-                                        'file', True, False))
+                        tmod = True
+                    changed.append(('/' + p, c, None, None, kind, tmod, pmod))
 
             if len(changed) == 0:
                 continue
