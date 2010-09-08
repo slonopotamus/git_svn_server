@@ -46,13 +46,14 @@ class Log(SimpleCommand):
         for changes, rev, author, date, msg, has_children, revprops in repos.log(url, target_paths, start_rev, end_rev, limit):
             changed_paths = []
             if send_changed_paths:
-                for path, change, copy_path, copy_rev in changes:
-                    cp = gen.list()
-                    if copy_path is not None and copy_rev is not None:
-                        cp = gen.list(gen.string(copy_path), copy_rev)
+                for path, change, cp, cr, kind, tmod, pmod in changes:
+                    copy = gen.list()
+                    if cp is not None and cr is not None:
+                        copy = gen.list(gen.string(cp), cr)
+                    ct = gen.list(gen.string(kind), gen.bool(tmod),
+                                  gen.bool(pmod))
                     changed_paths.append(gen.list(gen.string(path),
-                                                  change, cp, gen.list()))
-                                                  #change, cp, cr, gen.list()))
+                                         change, copy, ct))
             log_entry = gen.list(gen.list(*changed_paths),
                                  rev,
                                  gen.list(gen.string(author)),

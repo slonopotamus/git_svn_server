@@ -517,8 +517,30 @@ class Git (repos.Repos):
             changed = []
             for p, c in self.__get_changed_paths(sha1, path).items():
                 for tp in target_paths:
-                    if p.startswith(tp):
-                        changed.append((p, c, None, None))
+                    if not p.startswith(tp):
+                        continue
+                    if p == '.gitignore':
+                        changed.append(('/', c, None, None,
+                                        'dir', False, True))
+                    elif p.endswith('/.gitignore'):
+                        p = p[:-11]
+                        changed.append(('/' + p, c, None, None,
+                                        'dir', False, True))
+                    elif '/.gitprops/' in '/' + p:
+                        pth, name = ('/' + p).split('/.gitprops/')
+                        print 'gitprops: [%s] [%s]' % (pth, name)
+                        print '        : %s' % '/'.join((pth, name))
+                        if name == '.gitprops':
+                            if pth == '':
+                                pth = '/'
+                            changed.append((pth, c, None, None,
+                                           'dir', False, True))
+                        else:
+                            changed.append(('/'.join((pth, name)), c, None,
+                                           None, 'file', False, True))
+                    else:
+                        changed.append(('/' + p, c, None, None,
+                                        'file', True, False))
 
             if len(changed) == 0:
                 continue
