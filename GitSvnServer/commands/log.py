@@ -46,7 +46,8 @@ class Log(SimpleCommand):
         for changes, rev, author, date, msg, has_children, revprops in repos.log(url, target_paths, start_rev, end_rev, limit):
             changed_paths = []
             if send_changed_paths:
-                for path, change, cp, cr, kind, tmod, pmod in changes:
+                for path, data in sorted(changes.items()):
+                    change, cp, cr, kind, tmod, pmod = data
                     copy = gen.list()
                     if cp is not None and cr is not None:
                         copy = gen.list(gen.string(cp), cr)

@@ -514,28 +514,39 @@ class Git (repos.Repos):
             rev = row['revision']
             sha1 = row['sha1']
 
-            changed = []
+            changed = {}
             for p, c in self.__get_changed_paths(sha1, path).items():
                 for tp in target_paths:
                     if not p.startswith(tp):
                         continue
-                    kind, tmod, pmod = 'file', False, False
+                    kind, tmod, pmod, primary = 'file', False, False, True
                     if p == '.gitignore':
                         p, kind, pmod = '', 'dir', True
                     elif p.endswith('/.gitignore'):
                         p, kind, pmod = p[:-11], 'dir', True
                     elif p.startswith('.gitprops'):
+                        primary = False
                         p, c, pmod = p[10:], 'M', True
                         if p == '.gitprops':
                             p, kind = '', 'dir'
                     elif '/.gitprops/' in p:
+                        primary = False
                         pth, name = p.split('/.gitprops/')
                         p, c, pmod = '/'.join((pth, name)), 'M', True
                         if name == '.gitprops':
                             p, kind = pth, 'dir'
                     else:
                         tmod = True
-                    changed.append(('/' + p, c, None, None, kind, tmod, pmod))
+                    p = '/' + p
+                    prev  = changed.get(p, None)
+                    if prev is None:
+                        changed[p] = (c, None, None, kind, tmod, pmod)
+                        continue
+                    tmod = tmod or prev[4]
+                    pmod = pmod or prev[5]
+                    if not primary:
+                        c, kind = prev[0], prev[3]
+                    changed[p] = (c, None, None, kind, tmod, pmod)
 
             if len(changed) == 0:
                 continue
