@@ -525,12 +525,12 @@ class Git (repos.Repos):
                     elif p.endswith('/.gitignore'):
                         p, kind, pmod = p[:-11], 'dir', True
                     elif p.startswith('.gitprops'):
-                        p, pmod = p[10:], True
+                        p, c, pmod = p[10:], 'M', True
                         if p == '.gitprops':
                             p, kind = '', 'dir'
                     elif '/.gitprops/' in p:
                         pth, name = p.split('/.gitprops/')
-                        p, pmod = '/'.join((pth, name)), True
+                        p, c, pmod = '/'.join((pth, name)), 'M', True
                         if name == '.gitprops':
                             p, kind = pth, 'dir'
                     else:
