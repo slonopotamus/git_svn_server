@@ -826,6 +826,9 @@ class Git (repos.Repos):
 
             props = data.get('props', {})
 
+            # we want to commit a .gitignore file even if the svn:ignore
+            # property is empty - as we use the .gitignore file to represent the
+            # directory since git won't track them directly.
             f = GitFile(location=self.config.location)
             f.write(props.get('svn:ignore', ''))
             sha = f.close()
