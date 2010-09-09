@@ -340,7 +340,7 @@ class Git (repos.Repos):
         return props
 
     def _path_changed(self, sha1, sha2, path):
-        cmd = 'diff-tree --name-only %s %s -- %s' % (sha1, sha2, path)
+        cmd = 'diff-tree -r --name-only %s %s -- %s' % (sha1, sha2, path)
         changes = self.__get_git_data(cmd)
 
         return len(changes) != 0
