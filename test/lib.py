@@ -64,6 +64,18 @@ def clean_scratch(scratch):
     shutil.rmtree(scratch)
 
 
+try:
+    from subprocess import Popen, PIPE
+    def run_cmd(cmd):
+        p = Popen(cmd, shell=True,
+                  stdin=PIPE, stdout=PIPE, stderr=PIPE,
+                  close_fds=True)
+        return p.stdin, p.stdout, p.stderr
+except ImportError:
+    def run_cmd(cmd):
+        return os.popen3(self._cmd)
+
+
 class SvnData (object):
     def __init__(self, username, password, command_string):
         self._cmd = "%s --no-auth-cache --non-interactive --username '%s' " \
@@ -73,7 +85,7 @@ class SvnData (object):
         self.open()
 
     def open(self):
-        (self._in, self._data, self._err) = os.popen3(self._cmd)
+        self._in, self._data, self._err = run_cmd(self._cmd)
 
     def read(self, l=-1):
         return self._data.read(l)
