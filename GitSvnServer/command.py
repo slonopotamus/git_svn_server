@@ -1,6 +1,5 @@
 
 import generate as gen
-import md5
 import parse
 
 from commands import *

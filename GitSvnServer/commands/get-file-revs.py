@@ -1,9 +1,8 @@
 
-import md5
-
 from GitSvnServer import parse, svndiff
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
+
 
 class GetFileRevs (SimpleCommand):
     _cmd = 'get-file-revs'

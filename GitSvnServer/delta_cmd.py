@@ -1,11 +1,15 @@
 
-import md5
 import Queue
 import threading
 
 from GitSvnServer import parse, svndiff
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
+
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import new as md5
 
 
 def send_thread(link, inq, outq):
@@ -67,7 +71,7 @@ class DeltaCmd(Command):
         return False
 
     def get_token(self, path):
-        return 'tok%s' % md5.new(path).hexdigest()
+        return 'tok%s' % md5(path).hexdigest()
 
     def send(self, *args):
         self.sendq.put(args)

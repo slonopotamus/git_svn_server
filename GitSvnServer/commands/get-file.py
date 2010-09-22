@@ -1,5 +1,8 @@
 
-import md5
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import new as md5
 
 from GitSvnServer import parse
 from GitSvnServer import generate as gen
@@ -33,7 +36,7 @@ class GetFile (SimpleCommand):
             for name, value in props:
                 p.append(gen.list(gen.string(name), gen.string(value)))
 
-        m = md5.new()
+        m = md5()
         data = contents.read(8192)
         total_len = len(data)
         while len(data) > 0:

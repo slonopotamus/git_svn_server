@@ -1,8 +1,12 @@
 
 import difflib
-import md5
 import sys
 import zlib
+
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import new as md5
 
 
 def encode_int(i):
@@ -95,7 +99,7 @@ class Encoder (object):
         self.orig_offset = 0
         self.complete = False
         self.chunk_size = 102400
-        self.md5 = md5.new()
+        self.md5 = md5()
 
     def header(self):
         return 'SVN%s' % chr(self.version)
