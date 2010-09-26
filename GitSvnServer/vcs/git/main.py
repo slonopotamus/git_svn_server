@@ -1033,6 +1033,9 @@ class Git (repos.Repos):
                     t, p, n, email, date, m = self.__commit_info(sha)
 
         else:
+            if commit.ref.startswith('refs/tags/'):
+                raise HookFailure(1, "Commits to tags are not permitted.")
+
             sha = self.do_commit(commit, msg)
             t, p, n, email, date, m = self.__commit_info(sha)
 
