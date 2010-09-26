@@ -176,6 +176,8 @@ class Commit (Command):
 
         msg = parse.string(self.args[0])
 
+        self.commit_info = None
+
         if self.aborted:
             repos.abort_commit(self.commit)
             self.link.send_msg(gen.error(1, "aborted"))
@@ -187,8 +189,17 @@ class Commit (Command):
 
         if rev is None:
             self.link.send_msg(gen.error(1, "vcs error: %s" % error))
-        else:
-            self.link.send_msg(gen.list(rev,
-                                        gen.list(gen.string(date)),
-                                        gen.list(gen.string(author)),
-                                        gen.list()))
+            return
+
+        self.commit_info = gen.list(rev, gen.list(gen.string(date)),
+                                    gen.list(gen.string(author)), gen.list())
+
+        self.link.send_msg(gen.success())
+        raise ChangeMode('auth', 'command')
+
+    @cmd_step
+    def send_commit_info(self):
+        if self.commit_info is None:
+            return
+
+        self.link.send_msg(self.commit_info)

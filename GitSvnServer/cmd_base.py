@@ -129,8 +129,7 @@ class Command:
         raise NotImplementedError()
 
     def edit_finish(self):
-        self.link.send_msg(gen.success())
-        raise ChangeMode('auth', 'command')
+        raise ChangeMode('command')
 
     def edit_abort(self):
         raise NotImplementedError()
