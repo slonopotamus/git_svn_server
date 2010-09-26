@@ -4,7 +4,8 @@ import os
 
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
-from GitSvnServer import parse, svndiff
+from GitSvnServer import parse, svndiff, hooks
+from GitSvnServer.errors import HookFailure
 
 
 class Dir (object):
@@ -183,7 +184,12 @@ class Commit (Command):
             self.link.send_msg(gen.error(1, "aborted"))
             return
 
-        rev, date, author, error = repos.complete_commit(self.commit, msg)
+        try:
+            rev, date, author, error = repos.complete_commit(self.commit, msg)
+        except HookFailure, hf:
+            err, msg = hooks.pre_commit(hf.code, hf.text)
+            self.link.send_msg(gen.error(err, msg))
+            return
 
         print rev, date, author, error
 
