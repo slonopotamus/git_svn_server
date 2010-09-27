@@ -356,6 +356,17 @@ class Git (repos.Repos):
 
     def check_path(self, url, rev):
         ref, path = self.__map_url(url)
+
+        # Deal with the pseudo dirs at the top of the url space.  By adding the
+        # name trunk to the URL it should be turned into somthing that __map_url
+        # can map - either refs/tags/trunk (url was /tags), refs/heads/trunk
+        # (url was /branches), or refs/heads/master (url was /).
+        if ref is None:
+            ref, path = self.__map_url("/".join((url, 'trunk')))
+            if ref is not None and path == '':
+                return 'dir'
+            return 'none'
+
         sha1 = self.map.find_commit(ref, rev)
 
         if sha1 is None:
