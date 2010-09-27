@@ -1011,8 +1011,10 @@ class Git (repos.Repos):
 
         print 'ref: %s, path: %s' % (ref, path)
 
-        cmd = '--bare rev-parse %s' % ref
-        parent = self.__get_git_data(cmd)[0]
+        parent = None
+        if ref is not None:
+            cmd = '--bare rev-parse %s' % ref
+            parent = self.__get_git_data(cmd)[0]
 
         return GitCommit(self, ref, parent, path)
 
