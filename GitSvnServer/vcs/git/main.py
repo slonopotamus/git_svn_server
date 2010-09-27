@@ -36,8 +36,9 @@ class GitFile (object):
 
 
 class GitCommit (object):
-    def __init__(self, repos, ref, parent, prefix):
+    def __init__(self, repos, url, ref, parent, prefix):
         self.repos = repos
+        self.url = url
         self.ref = ref
         self.parent = parent
         self.prefix = prefix
@@ -73,6 +74,10 @@ class GitCommit (object):
         self.dirs.setdefault(path, {}).setdefault('props', {})[name] = value
 
 
+class GitError (Exception):
+    pass
+
+
 class Git (repos.Repos):
     _kind = 'git'
 
@@ -98,6 +103,10 @@ class Git (repos.Repos):
         git_data.open()
 
         data = [line.strip('\n') for line in git_data._data]
+
+        error = git_data._err.read()
+        if len(error) > 0:
+            raise GitError(error)
 
         git_data.close()
 
@@ -1009,14 +1018,17 @@ class Git (repos.Repos):
     def start_commit(self, url):
         ref, path = self.__map_url(url)
 
-        print 'ref: %s, path: %s' % (ref, path)
-
         parent = None
         if ref is not None:
-            cmd = '--bare rev-parse %s' % ref
-            parent = self.__get_git_data(cmd)[0]
+            try:
+                cmd = '--bare rev-parse %s' % ref
+                parent = self.__get_git_data(cmd)[0]
+            except GitError:
+                ref = None
 
-        return GitCommit(self, ref, parent, path)
+        print 'ref: %s, path: %s, parent: %s' % (ref, path, parent)
+
+        return GitCommit(self, url, ref, parent, path)
 
     def complete_simple_commit(self, commit, msg):
         if commit.ref.startswith('refs/tags/'):
@@ -1041,41 +1053,36 @@ class Git (repos.Repos):
         tag = None
         branch = None
 
-        # TODO: if we keep the configurable layout, then we need to do
-        # lookups here to figure out where tags and branches live ...
         for path, data in commit.dirs.items():
-            if commit.prefix != "":
-                path = "%s/%s" % (commit.prefix, path)
-            url = data.get('url', None)
-            rev = data.get('rev', None)
-            print "..", path
-            if path.startswith('tags/'):
-                if tag is not None or branch is not None:
-                    raise HookFailure(1, "Only one branch or tag may be "
-                                      "created per commit.")
-                tag = path[5:], url, rev, msg
-            elif path.startswith('branches/'):
-                if tag is not None or branch is not None:
-                    raise HookFailure(1, "Only one branch or tag may be "
-                                      "created per commit.")
-                branch = path[9:], url, rev, msg
-            elif path.startswith('trunk/'):
-                # TODO: what do we do about this?
-                pass
-            else:
+            ref, path = self.__map_url("/".join((commit.url, path)))
+            print "..", ref, path
+            if ref is None:
                 raise HookFailure(1, "Only commits to trunk, tags and branches"
                                   " are permitted.")
+            if path != '':
+                raise HookFailure(1, "You may not commit to a non-existant tag"
+                                  " or branch.")
+            url = data.get('url', None)
+            rev = data.get('rev', None)
+            if ref.startswith('refs/tags/'):
+                if tag is not None or branch is not None:
+                    raise HookFailure(1, "Only one branch or tag may be "
+                                      "created per commit.")
+                if url is None or rev is None:
+                    raise HookFailure(1, "A tag may only be created by copying"
+                                      " an existing tag or branch")
+                tag = ref[10:], url, rev, msg
+            elif ref.startswith('refs/heads/'):
+                if tag is not None or branch is not None:
+                    raise HookFailure(1, "Only one branch or tag may be "
+                                      "created per commit.")
+                branch = ref[11:], url, rev, msg
 
         if tag is not None:
-            name, url, rev, msg = tag
-            if url is None or rev is None:
-                raise HookFailure(1, "A tag may only be created by copying an "
-                                  "existing tag or branch")
-            sha = self.do_tag(name, url, rev, msg)
+            sha = self.do_tag(*tag)
             o, t, tn, n, email, date, m = self.__tag_info(sha)
         elif branch is not None:
-            name, url, rev, msg = branch
-            sha = self.do_branch(name, url, rev, msg)
+            sha = self.do_branch(*branch)
             t, p, n, email, date, m = self.__commit_info(sha)
 
         ref, rev = self.map.get_ref_rev(sha)
