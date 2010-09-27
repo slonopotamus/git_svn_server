@@ -16,7 +16,7 @@ class CheckPath(SimpleCommand):
         if len(path) > 0:
             url = '/'.join((url, path))
 
-        if len(args) > 1:
+        if len(args) > 1 and len(args[1]) > 0:
             rev = int(args[1][0])
 
 ##        ref, path = repos.parse_url(url)

@@ -69,7 +69,9 @@ class GitMap (GitDb):
             return 0
         return int(row['revision'])
 
-    def find_commit(self, ref, rev, tag_sha1=False):
+    def find_commit(self, ref, rev=None, tag_sha1=False):
+        if rev is None:
+            rev = self.get_latest_rev()
         conn = self.connect()
         sql = 'SELECT revision, action, sha1, origin FROM transactions WHERE ' \
               'ref = ? AND revision <= ? ORDER BY revision DESC'
