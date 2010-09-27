@@ -1018,27 +1018,64 @@ class Git (repos.Repos):
 
         return GitCommit(self, ref, parent, path)
 
+    def complete_simple_commit(self, commit, msg):
+        if commit.ref.startswith('refs/tags/'):
+            raise HookFailure(1, "Commits to tags are not permitted.")
+
+        sha = self.do_commit(commit, msg)
+        t, p, n, email, date, m = self.__commit_info(sha)
+
+        ref, rev = self.map.get_ref_rev(sha)
+        return rev, date, email, ""
+
     def complete_commit(self, commit, msg):
-        if commit.ref is None:
-            print 'hmmm', commit.dirs, commit.files
+        if commit.ref is not None:
+            return self.complete_simple_commit(commit, msg)
 
-            # TODO: if we keep the configurable layout, then we need to do
-            # lookups here to figure out where tags and branches live ...
-            for path, data in commit.dirs.items():
-                url = data.get('url', None)
-                rev = data.get('rev', None)
-                if path.startswith('tags/'):
-                    sha = self.do_tag(path[5:], url, rev, msg)
-                    o, t, tn, n, email, date, m = self.__tag_info(sha)
-                elif path.startswith('branches/'):
-                    sha = self.do_branch(path[9:], url, rev, msg)
-                    t, p, n, email, date, m = self.__commit_info(sha)
+        print 'hmmm', commit.dirs, commit.files
 
-        else:
-            if commit.ref.startswith('refs/tags/'):
-                raise HookFailure(1, "Commits to tags are not permitted.")
+        if len(commit.files) > 0:
+            raise HookFailure(1, "General commits are only permitted to trunk, "
+                              "or an existing branch.")
 
-            sha = self.do_commit(commit, msg)
+        tag = None
+        branch = None
+
+        # TODO: if we keep the configurable layout, then we need to do
+        # lookups here to figure out where tags and branches live ...
+        for path, data in commit.dirs.items():
+            if commit.prefix != "":
+                path = "%s/%s" % (commit.prefix, path)
+            url = data.get('url', None)
+            rev = data.get('rev', None)
+            print "..", path
+            if path.startswith('tags/'):
+                if tag is not None or branch is not None:
+                    raise HookFailure(1, "Only one branch or tag may be "
+                                      "created per commit.")
+                tag = path[5:], url, rev, msg
+            elif path.startswith('branches/'):
+                if tag is not None or branch is not None:
+                    raise HookFailure(1, "Only one branch or tag may be "
+                                      "created per commit.")
+                branch = path[9:], url, rev, msg
+            elif path.startswith('trunk/'):
+                # TODO: what do we do about this?
+                pass
+            else:
+                raise HookFailure(1, "Only commits to trunk, tags and branches"
+                                  " are permitted.")
+
+        if tag is not None:
+            name, url, rev, msg = tag
+            if url is None or rev is None:
+                raise HookFailure(1, "A tag may only be created by copying an "
+                                  "existing tag or branch")
+            sha = self.do_tag(name, url, rev, msg)
+            o, t, tn, n, email, date, m = self.__tag_info(sha)
+        elif branch is not None:
+            name, url, rev, msg = branch
+            sha = self.do_branch(name, url, rev, msg)
             t, p, n, email, date, m = self.__commit_info(sha)
 
         ref, rev = self.map.get_ref_rev(sha)
