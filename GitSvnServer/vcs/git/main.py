@@ -172,6 +172,9 @@ class Git (repos.Repos):
     def __ls_tree(self, sha1, path, options=''):
         results = []
 
+        if not sha1:
+            return results
+
         cmd = 'ls-tree -l %s %s "%s"' % (options, sha1, path)
 
         for line in self.__get_git_data(cmd):
