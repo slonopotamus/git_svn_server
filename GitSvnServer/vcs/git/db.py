@@ -26,12 +26,6 @@ class GitAuth (GitDb):
             return self.git.base_url
         return rows[0]['value']
 
-    def get_auth_list(self):
-        rows = self.execute('SELECT value FROM meta WHERE name = "auths"')
-        if len(rows) == 0:
-            return None
-        return [x.strip() for x in rows[0]['value'].split()]
-
     def get_user_details(self, username):
         sql = 'SELECT name, email FROM users WHERE username = ?'
         rows = self.execute(sql, username)

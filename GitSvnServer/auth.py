@@ -12,9 +12,6 @@ class DummyAuthDb (object):
     def get_realm(self):
         return self.repos.base_url
 
-    def get_auth_list(self):
-        return None
-
     def get_password(self, username):
         return ''
 
@@ -75,16 +72,7 @@ def auth(link):
     auth_db = link.repos.get_auth()
 
     realm = auth_db.get_realm()
-    auth_list = auth_db.get_auth_list()
-
-    if auth_list is None:
-        auth_list = ['CRAM-MD5']
-    else:
-        for auth in auth_list:
-            if auth not in auths:
-                auth_list.remove(auth)
-
-    link.send_msg(gen.success(gen.list(*auth_list), gen.string(realm)))
+    link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(realm)))
 
     while True:
         auth_type = parse.msg(link.read_msg())[0]
