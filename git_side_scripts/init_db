@@ -4,7 +4,6 @@
 import os
 import sqlite3
 import time
-import uuid
 
 
 meta = """
@@ -41,10 +40,6 @@ def main():
     conn.execute(meta)
     conn.execute(users)
     conn.execute(transactions)
-
-    # Create a UUID for this repository
-    conn.execute("INSERT INTO meta (name, value ) VALUES(?, ?)",
-                 ('uuid', str(uuid.uuid4())))
 
     # Record the creation date for this repository
     

@@ -154,7 +154,7 @@ class Git (repos.Repos):
             return 'dir'
 
     def _calc_uuid(self):
-        self.uuid = self.map.get_uuid()
+        self.uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, self.base_url))
 
     def get_latest_rev(self):
         return self.map.get_latest_rev()

@@ -48,12 +48,6 @@ class GitAuth (GitDb):
 
 
 class GitMap (GitDb):
-    def get_uuid(self):
-        rows = self.execute('SELECT value FROM meta WHERE name = "uuid"')
-        if len(rows) == 0:
-            return None
-        return rows[0]['value']
-
     def created_date(self):
         rows = self.execute('SELECT value FROM meta WHERE name = "created"')
         if len(rows) == 0:
