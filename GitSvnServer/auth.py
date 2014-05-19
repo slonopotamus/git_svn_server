@@ -9,9 +9,6 @@ class DummyAuthDb (object):
     def __init__(self, repos):
         self.repos = repos
 
-    def get_realm(self):
-        return self.repos.base_url
-
     def get_password(self, username):
         return ''
 
@@ -71,8 +68,7 @@ auths = {
 def auth(link):
     auth_db = link.repos.get_auth()
 
-    realm = auth_db.get_realm()
-    link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(realm)))
+    link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(link.repos.base_url)))
 
     while True:
         auth_type = parse.msg(link.read_msg())[0]

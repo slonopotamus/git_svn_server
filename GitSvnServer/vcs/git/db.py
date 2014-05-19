@@ -20,12 +20,6 @@ class GitDb (object):
 
 
 class GitAuth (GitDb):
-    def get_realm(self):
-        rows = self.execute('SELECT value FROM meta WHERE name = "realm"')
-        if len(rows) == 0:
-            return self.git.base_url
-        return rows[0]['value']
-
     def get_user_details(self, username):
         sql = 'SELECT name, email FROM users WHERE username = ?'
         rows = self.execute(sql, username)
