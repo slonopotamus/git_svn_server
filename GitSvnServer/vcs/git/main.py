@@ -282,7 +282,10 @@ class Git (repos.Repos):
 
         return contents
 
-    def __get_last_changed(self, sha1, path):
+    def __get_last_changed(self, sha1, path, rev=None):
+        if sha1 is None:
+            return rev, None, self.created_date
+
         changed_shas = self.__rev_list(sha1, path, count=1)
 
         if len(changed_shas) != 1:
@@ -345,7 +348,9 @@ class Git (repos.Repos):
         props.append(('svn:entry:uuid', self.get_uuid()))
         props.append(('svn:entry:committed-rev', str(changed)))
         props.append(('svn:entry:committed-date', at))
-        props.append(('svn:entry:last-author', by))
+
+        if by:
+            props.append(('svn:entry:last-author', by))
 
         return props
 
@@ -391,9 +396,7 @@ class Git (repos.Repos):
 
     def __stat_branches_dir(self, rev):
         sha1 = self.map.get_commit_by_pattern('refs/heads/%', rev)
-        if sha1 is None:
-            return rev, None, self.created_date
-        return self.__get_last_changed(sha1, '')
+        return self.__get_last_changed(sha1, '', rev=rev)
 
     def stat(self, url, rev):
         ref, path = self.__map_url(url)
@@ -411,10 +414,7 @@ class Git (repos.Repos):
             # We have been asked about the respository root, we don't have one
             # so we have to make something up.
             sha1 = self.map.get_commit_by_rev(rev)
-            if sha1 is None:
-                changed, by, at = rev, None, self.created_date
-            else:
-                changed, by, at = self.__get_last_changed(sha1, path)
+            changed, by, at = self.__get_last_changed(sha1, path, rev=rev)
             return '', 'dir', 0, changed, by, at
 
         if sha1 is None:
@@ -434,7 +434,7 @@ class Git (repos.Repos):
 
         kind = self.__map_type(type)
 
-        changed, by, at = self.__get_last_changed(sha1, path)
+        changed, by, at = self.__get_last_changed(sha1, path, rev=rev)
 
         return path, kind, size, changed, by, at
 
@@ -455,7 +455,7 @@ class Git (repos.Repos):
                     if sha1 is None:
                         continue
                     if include_changed:
-                        changed, by, at = self.__get_last_changed(sha1, '')
+                        changed, by, at = self.__get_last_changed(sha1, '', rev=rev)
                 else:
                     if include_changed:
                         changed, by, at = self.__get_tag_changed(sha1)
@@ -472,7 +472,7 @@ class Git (repos.Repos):
                 if sha1 is None:
                     continue
                 if include_changed:
-                    changed, by, at = self.__get_last_changed(sha1, '')
+                    changed, by, at = self.__get_last_changed(sha1, '', rev=rev)
                 ls_data.append((name, 'dir', 0, changed, by, at))
             return ls_data
 
@@ -486,7 +486,7 @@ class Git (repos.Repos):
             sha1 = self.map.find_commit('refs/heads/master', rev)
             changed, by, at = None, None, None
             if include_changed:
-                changed, by, at = self.__get_last_changed(sha1, '')
+                changed, by, at = self.__get_last_changed(sha1, '', rev=rev)
             ls_data.append(('trunk', 'dir', 0, changed, by, at))
             return ls_data
 
@@ -496,7 +496,7 @@ class Git (repos.Repos):
         for mode, type, sha, size, name in self.__ls_tree(sha1, path):
             kind = self.__map_type(type)
             if include_changed :
-                changed, by, at = self.__get_last_changed(sha1, name)
+                changed, by, at = self.__get_last_changed(sha1, name, rev=rev)
             else:
                 changed, by, at = None, None, None
             if name.startswith(path):
@@ -596,7 +596,7 @@ class Git (repos.Repos):
         if not include_internal:
             return props
 
-        changed, by, at = self.__get_last_changed(sha1, path)
+        changed, by, at = self.__get_last_changed(sha1, path, rev=rev)
 
         props.extend(self.__svn_internal_props(changed, by, at))
 
