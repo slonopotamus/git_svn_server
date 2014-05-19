@@ -86,16 +86,10 @@ class Git (repos.Repos):
         self.map = GitMap(self, config.location)
         self.auth_db = GitAuth(self, self.config.location)
         self.cat_file = GitCatFile(config.location)
-        self.trunk_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
-                                   (self.base_url, config.trunk))
-        branches = config.branches.replace('$(branch)', '(?P<branch>[^/]+)')
-        self.branch_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
-                                    (self.base_url, branches))
-        tags = config.tags.replace('$(tag)', '(?P<tag>[^/]+)')
-        self.tag_re = re.compile(r'^%s/%s(/(?P<path>.*))?$' %
-                                 (self.base_url, tags))
-        self.other_re = re.compile(r'^%s(/(?P<path>.*))?$' %
-                                   (self.base_url))
+        self.trunk_re = re.compile(r'^%s/trunk(/(?P<path>.*))?$' % self.base_url)
+        self.branch_re = re.compile(r'^%s/branches/(?P<branch>[^/]+)(/(?P<path>.*))?$' % self.base_url)
+        self.tag_re = re.compile(r'^%s/tags/(?P<tag>[^/]+)(/(?P<path>.*))?$' % self.base_url)
+        self.other_re = re.compile(r'^%s(/(?P<path>.*))?$' % self.base_url)
 
     def __get_git_data(self, command_string):
         git_data = GitData(self.config.location, command_string)
@@ -399,13 +393,10 @@ class Git (repos.Repos):
         sha1 = self.map.find_commit(ref, rev)
 
         if ref is None and path == 'tags':
-            # TODO: This ought to be using the path mapping, not assuming that
-            # tags are in <root>/tags ...
             changed, by, at = self.__stat_tags_dir(rev)
             return '', 'dir', 0, changed, by, at
 
         if ref is None and path == 'branches':
-            # TODO: do the branches dir detection properly ...
             changed, by, at = self.__stat_branches_dir(rev)
             return '', 'dir', 0, changed, by, at
 
@@ -447,7 +438,6 @@ class Git (repos.Repos):
         ls_data = []
 
         if ref is None and path == 'tags':
-            # TODO: do the tags dir detection properly ...
             tags = self.__list_tags()
             for name in tags:
                 sha1 = self.map.find_commit('refs/tags/%s' % name, rev, True)
@@ -466,7 +456,6 @@ class Git (repos.Repos):
             return ls_data
 
         if ref is None and path == 'branches':
-            # TODO: do the branches dir detection properly ...
             branches = self.__list_branches()
             for name in branches:
                 if name == "master":

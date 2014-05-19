@@ -1,5 +1,2 @@
 [repos "foo"]
-    location = /var/git/foo
-    trunk = trunk
-    branches = branches/$(branch)
-    tags = tags/$(tag)
+    location = .git
