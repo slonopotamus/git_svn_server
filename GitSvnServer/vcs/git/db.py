@@ -36,12 +36,6 @@ class GitAuth (GitDb):
 
 
 class GitMap (GitDb):
-    def created_date(self):
-        rows = self.execute('SELECT value FROM meta WHERE name = "created"')
-        if len(rows) == 0:
-            return None
-        return rows[0]['value']
-
     def get_latest_rev(self):
         conn = self.connect()
         sql = 'SELECT revision FROM transactions ORDER BY revision DESC'

@@ -14,6 +14,11 @@ from data import *
 from db import *
 
 
+
+def format_time(timestamp):
+    return time.strftime('%Y-%m-%dT%H:%M:%S.000000Z', timestamp)
+
+
 class GitFile (object):
     def __init__(self, commit=None, path=None, location=None):
         self.commit = commit
@@ -90,6 +95,7 @@ class Git (repos.Repos):
         self.branch_re = re.compile(r'^%s/branches/(?P<branch>[^/]+)(/(?P<path>.*))?$' % self.base_url)
         self.tag_re = re.compile(r'^%s/tags/(?P<tag>[^/]+)(/(?P<path>.*))?$' % self.base_url)
         self.other_re = re.compile(r'^%s(/(?P<path>.*))?$' % self.base_url)
+        self.created_date = format_time(time.gmtime(0))
 
     def __get_git_data(self, command_string):
         git_data = GitData(self.config.location, command_string)
@@ -227,8 +233,7 @@ class Git (repos.Repos):
 
         tz_secs = 60 * (60 * (tz/100) + (tz%100))
 
-        date = time.strftime('%Y-%m-%dT%H:%M:%S.000000Z',
-                             time.gmtime(when + tz_secs))
+        date = format_time(time.gmtime(when + tz_secs))
 
         return tree, parents, name, email, date, msg
 
@@ -260,8 +265,7 @@ class Git (repos.Repos):
 
         tz_secs = 60 * (60 * (tz/100) + (tz%100))
 
-        date = time.strftime('%Y-%m-%dT%H:%M:%S.000000Z',
-                             time.gmtime(when + tz_secs))
+        date = format_time(time.gmtime(when + tz_secs))
 
         return obj, type, tag_name, name, email, date, msg
 
@@ -379,13 +383,13 @@ class Git (repos.Repos):
     def __stat_tags_dir(self, rev):
         sha1 = self.map.get_commit_by_pattern('refs/tags/%', rev, True)
         if sha1 is None:
-            return rev, None, self.map.created_date()
+            return rev, None, self.created_date
         return self.__get_tag_changed(sha1)
 
     def __stat_branches_dir(self, rev):
         sha1 = self.map.get_commit_by_pattern('refs/heads/%', rev)
         if sha1 is None:
-            return rev, None, self.map.created_date()
+            return rev, None, self.created_date
         return self.__get_last_changed(sha1, '')
 
     def stat(self, url, rev):
@@ -405,7 +409,7 @@ class Git (repos.Repos):
             # so we have to make something up.
             sha1 = self.map.get_commit_by_rev(rev)
             if sha1 is None:
-                changed, by, at = rev, None, self.map.created_date()
+                changed, by, at = rev, None, self.created_date
             else:
                 changed, by, at = self.__get_last_changed(sha1, path)
             return '', 'dir', 0, changed, by, at
@@ -668,8 +672,7 @@ class Git (repos.Repos):
                 when = int(line[3:-6].strip())
                 tz = int(line[-5:].strip())
                 tz_secs = 60 * (60 * (tz/100) + (tz%100))
-                date = time.strftime('%Y-%m-%dT%H:%M:%S.000000Z',
-                                     time.gmtime(when + tz_secs))
+                date = format_time(time.gmtime(when + tz_secs))
                 continue
 
             if line.startswith('//'):
