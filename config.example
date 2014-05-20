@@ -1,2 +1,7 @@
-[repos "foo"]
-    location = .git
+# Section names are used for url mapping.
+# This repository will be available at svn://localhost/foo
+[foo]
+
+# Filesystem path to .git directory.
+# Relative paths are evaluated from git-svnserver working directory
+location: .git
