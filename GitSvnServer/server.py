@@ -41,7 +41,7 @@ def get_address(ip, port):
     return address
 
 
-class SvnServer(ForkingTCPServer):
+class SvnServer(ThreadingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
 
@@ -50,7 +50,7 @@ class SvnServer(ForkingTCPServer):
         self.log = options.log
         self.repo_map = repo_map
         address = get_address(options.ip, options.port)
-        ForkingTCPServer.__init__(self, address, SvnRequestHandler)
+        ThreadingTCPServer.__init__(self, address, SvnRequestHandler)
 
     def start(self):
         if self.options.debug:
