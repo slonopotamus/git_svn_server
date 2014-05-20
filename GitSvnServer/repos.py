@@ -38,9 +38,6 @@ class Repos (object):
 
         return self.uuid
 
-    def get_base_url(self):
-        return self.base_url
-
     def get_latest_rev(self):
         raise NotImplemented()
 
