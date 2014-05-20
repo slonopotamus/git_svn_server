@@ -180,7 +180,6 @@ class Commit (Command):
         self.commit_info = None
 
         if self.aborted:
-            repos.abort_commit(self.commit)
             self.link.send_msg(gen.error(1, "aborted"))
             return
 

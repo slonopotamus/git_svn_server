@@ -77,9 +77,6 @@ class Repos (object):
     def complete_commit(self, commit, msg):
         raise NotImplemented()
 
-    def abort_commit(self, commit):
-        raise NotImplemented()
-
     def get_auth(self):
         raise NotImplemented()
 

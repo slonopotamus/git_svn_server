@@ -1099,9 +1099,5 @@ class Git (repos.Repos):
         ref, rev = self.map.get_ref_rev(sha)
         return rev, date, email, ""
 
-    def abort_commit(self, commit):
-        print "abort commit ..."
-        pass
-
     def get_auth(self):
         return self.auth_db
