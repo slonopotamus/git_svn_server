@@ -222,6 +222,7 @@ class SvnRequestHandler(StreamRequestHandler):
 
     def handle(self):
         sys.stderr.write('%d: -- NEW CONNECTION --\n' % os.getpid())
+        msg = None
         try:
             while True:
                 sys.stdout.flush()
@@ -264,13 +265,13 @@ class SvnRequestHandler(StreamRequestHandler):
                     else:
                         raise ModeError("unknown mode '%s'" % self.mode)
 
-                except ChangeMode, cm:
+                except ChangeMode as cm:
                     self.mode = cm.args[0]
                     if len(cm.args) > 1:
                         self.data = cm.args[1]
         except EOF:
             msg = 'EOF'
-        except socket.error, e:
+        except socket.error as e:
             errno, msg = e
         sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
                          (os.getpid(), msg))

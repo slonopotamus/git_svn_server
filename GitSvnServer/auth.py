@@ -28,7 +28,7 @@ class AuthMethod:
         while True:
             try:
                 return self.perform_auth()
-            except AuthFailure, fail:
+            except AuthFailure as fail:
                 self.link.send_msg(gen.failure(*fail.args))
                 return False
 

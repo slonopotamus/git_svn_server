@@ -135,7 +135,7 @@ class Commit(Command):
     def apply_textdelta(self, file_token, base_checksum):
         try:
             self.files[file_token].delta_start(base_checksum)
-        except PathChanged, e:
+        except PathChanged as e:
             self.aborted = True
             self.link.send_msg(gen.error(1, "File '%s' is out of date" % e))
 
@@ -179,7 +179,7 @@ class Commit(Command):
 
         try:
             rev, date, author, error = repos.complete_commit(self.commit, msg)
-        except HookFailure, hf:
+        except HookFailure as hf:
             err, msg = hooks.pre_commit(hf.code, hf.text)
             self.link.send_msg(gen.error(err, msg))
             return
