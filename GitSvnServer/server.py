@@ -14,7 +14,6 @@ import report
 import socket
 
 import generate as gen
-from config import config
 from errors import *
 
 addr_family = socket.AF_INET
@@ -268,18 +267,3 @@ class SvnRequestHandler(StreamRequestHandler):
         sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
                          (os.getpid(), msg))
         sys.stderr.flush()
-
-
-def main():
-    config.load('test.cfg')
-
-    server = SvnServer((all_interfaces, 3690))
-
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-
-
-if __name__ == "__main__":
-    main()
