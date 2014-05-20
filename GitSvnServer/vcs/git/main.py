@@ -575,7 +575,7 @@ class Git (repos.Repos):
             yield (changed, rev, author, date, msg, has_children, revprops)
 
     def rev_proplist(self, rev):
-        raise repos.UnImplemented
+        raise repos.NotImplemented
 
     def get_props(self, url, rev, include_internal=True, mode=None):
         ref, path = self.__map_url(url)

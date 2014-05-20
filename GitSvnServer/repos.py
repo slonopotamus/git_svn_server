@@ -10,17 +10,6 @@ url_re = re.compile(r'^svn://(?P<host>[^/]+)/(?P<path>.*?)\s*$')
 class ReposError (Exception):
     pass
 
-
-class UnImplemented (Exception):
-    def __init__(self):
-        stack = inspect.stack()
-        if len(stack) < 2:
-            msg = '???'
-        else:
-            msg = inspect.stack()[1][3]
-        Exception.__init__(self, msg)
-
-
 repos_types = {}
 class ReposMeta (type):
     def __new__(mcs, name, bases, dict):
@@ -41,7 +30,7 @@ class Repos (object):
         self.config = config
 
     def _calc_uuid(self):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def get_uuid(self):
         if self.uuid is None:
@@ -53,46 +42,46 @@ class Repos (object):
         return self.base_url
 
     def get_latest_rev(self):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def check_path(self, url, rev):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def stat(self, url, rev):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def ls(self, url, rev):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def log(self, url, target_paths, start_rev, end_rev, limit):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def rev_proplist(self, rev):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def get_props(self, url, rev, include_internal=True):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def path_changed(self, url, rev, prev_rev):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def get_file(self, url, rev):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def get_files(self, url, rev):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def start_commit(self, url, username):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def complete_commit(self, commit, msg):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def abort_commit(self, commit):
-        raise UnImplemented()
+        raise NotImplemented()
 
     def get_auth(self):
-        raise UnImplemented()
+        raise NotImplemented()
 
 
 repos_list = {}
