@@ -914,7 +914,7 @@ class Git (repos.Repos):
         commit_sha = ct.read().strip()
         ct.close()
 
-        cmd = 'push . %s:%s' % (commit_sha, commit.ref)
+        cmd = 'push --porcelain . %s:%s' % (commit_sha, commit.ref)
         self.__get_git_data(cmd)
 
         index_file = os.path.join(self.config.location, index_file)
@@ -967,7 +967,7 @@ class Git (repos.Repos):
         tag_sha = mktag.read().strip()
         mktag.close()
 
-        cmd = 'push . %s:%s' % (tag_sha, 'refs/tags/%s' % name)
+        cmd = 'push --porcelain . %s:%s' % (tag_sha, 'refs/tags/%s' % name)
         self.__get_git_data(cmd)
 
         print "created refs/tags/%s[%s]" % (name, tag_sha[:8])
@@ -1009,7 +1009,7 @@ class Git (repos.Repos):
 
         print "create commit", commit_sha
 
-        cmd = 'push . %s:%s' % (commit_sha, 'refs/heads/%s' % name)
+        cmd = 'push --porcelain . %s:%s' % (commit_sha, 'refs/heads/%s' % name)
         print cmd
         print self.__get_git_data(cmd)
 
