@@ -39,10 +39,6 @@ class Repos (object):
         self.uuid = None
         self.base_url = 'svn://%s/%s' % (host, base)
         self.config = config
-        self.username = None
-
-    def set_username(self, username):
-        self.username = username
 
     def _calc_uuid(self):
         raise UnImplemented()
@@ -86,7 +82,7 @@ class Repos (object):
     def get_files(self, url, rev):
         raise UnImplemented()
 
-    def start_commit(self):
+    def start_commit(self, url, username):
         raise UnImplemented()
 
     def complete_commit(self, commit, msg):

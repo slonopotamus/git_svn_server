@@ -104,6 +104,7 @@ class SvnRequestHandler(StreamRequestHandler):
         self.auth = None
         self.data = None
         self.url = None
+        self.username = None
         self.command = None
         self.options = server.options
         if server.log is not None:
@@ -225,16 +226,14 @@ class SvnRequestHandler(StreamRequestHandler):
                         self.mode = 'auth'
 
                     elif self.mode == 'auth':
-                        if self.auth is None:
-                            self.auth = auth.perform_auth(self)
-                            self.repos.set_username(self.auth.username)
+                        if self.username is None:
+                            self.username = auth.perform_auth(self)
                             self.mode = 'announce'
                         else:
-                            self.auth.reauth()
-                            self.repos.set_username(self.auth.username)
+                            self.send_msg(gen.success(gen.list(), gen.string('')))
                             self.mode = self.data
 
-                        if self.auth is None:
+                        if self.username is None:
                             return
 
                     elif self.mode == 'announce':

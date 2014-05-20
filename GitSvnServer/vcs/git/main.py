@@ -41,7 +41,7 @@ class GitFile (object):
 
 
 class GitCommit (object):
-    def __init__(self, repos, url, ref, parent, prefix):
+    def __init__(self, repos, url, ref, parent, prefix, username):
         self.repos = repos
         self.url = url
         self.ref = ref
@@ -49,6 +49,7 @@ class GitCommit (object):
         self.prefix = prefix
         self.dirs = {}
         self.files = {}
+        self.username = username
 
     def remove_path(self, path):
         self.files.setdefault(path, {})['delete'] = True
@@ -833,13 +834,12 @@ class Git (repos.Repos):
         index_file = 'svnserver/%s.idx' % uuid.uuid4()
         os.environ['GIT_INDEX_FILE'] = index_file
 
-        if self.username is not None:
-            name, email = self.auth_db.get_user_details(self.username)
+        name, email = self.auth_db.get_user_details(commit.username)
 
-            os.environ['GIT_AUTHOR_NAME'] = name
-            os.environ['GIT_AUTHOR_EMAIL'] = email
-            os.environ['GIT_COMMITTER_NAME'] = name
-            os.environ['GIT_COMMITTER_EMAIL'] = email
+        os.environ['GIT_AUTHOR_NAME'] = name
+        os.environ['GIT_AUTHOR_EMAIL'] = email
+        os.environ['GIT_COMMITTER_NAME'] = name
+        os.environ['GIT_COMMITTER_EMAIL'] = email
 
         cmd = '--bare read-tree %s' % commit.parent
         self.__get_git_data(cmd)
@@ -929,14 +929,14 @@ class Git (repos.Repos):
 
         return commit_sha
 
-    def do_tag(self, name, url, rev, msg):
+    def do_tag(self, name, url, rev, msg, username=''):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
         print "create tag %s from %s@%d" % (name, url, rev)
         print "create tag %s from %s[%s]" % (name, ref, sha1[:8])
 
-        uname, email = self.auth_db.get_user_details(self.username)
+        uname, email = self.auth_db.get_user_details(username)
 
         timestamp = time.time()
         now = time.localtime(timestamp)
@@ -974,7 +974,7 @@ class Git (repos.Repos):
 
         return tag_sha
 
-    def do_branch(self, name, url, rev, msg):
+    def do_branch(self, name, url, rev, msg, username=''):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
@@ -989,13 +989,12 @@ class Git (repos.Repos):
 
         os.environ['GIT_INDEX_FILE'] = 'svnserver/tmp-index'
 
-        if self.username is not None:
-            uname, email = self.auth_db.get_user_details(self.username)
+        uname, email = self.auth_db.get_user_details(username)
 
-            os.environ['GIT_AUTHOR_NAME'] = uname
-            os.environ['GIT_AUTHOR_EMAIL'] = email
-            os.environ['GIT_COMMITTER_NAME'] = uname
-            os.environ['GIT_COMMITTER_EMAIL'] = email
+        os.environ['GIT_AUTHOR_NAME'] = uname
+        os.environ['GIT_AUTHOR_EMAIL'] = email
+        os.environ['GIT_COMMITTER_NAME'] = uname
+        os.environ['GIT_COMMITTER_EMAIL'] = email
 
         tree, p, n, e, d, m = self.__commit_info(sha1)
 
@@ -1021,7 +1020,7 @@ class Git (repos.Repos):
 
         return commit_sha
 
-    def start_commit(self, url):
+    def start_commit(self, url, username):
         ref, path = self.__map_url(url)
 
         parent = None
@@ -1034,7 +1033,7 @@ class Git (repos.Repos):
 
         print 'ref: %s, path: %s, parent: %s' % (ref, path, parent)
 
-        return GitCommit(self, url, ref, parent, path)
+        return GitCommit(self, url, ref, parent, path, username)
 
     def complete_simple_commit(self, commit, msg):
         if commit.ref.startswith('refs/tags/'):
@@ -1047,6 +1046,12 @@ class Git (repos.Repos):
         return rev, date, email, ""
 
     def complete_commit(self, commit, msg):
+        """
+
+
+        :type msg: str
+        :type commit: GitCommit
+        """
         if commit.ref is not None:
             return self.complete_simple_commit(commit, msg)
 
@@ -1085,10 +1090,10 @@ class Git (repos.Repos):
                 branch = ref[11:], url, rev, msg
 
         if tag is not None:
-            sha = self.do_tag(*tag)
+            sha = self.do_tag(*tag, username=commit.username)
             o, t, tn, n, email, date, m = self.__tag_info(sha)
         elif branch is not None:
-            sha = self.do_branch(*branch)
+            sha = self.do_branch(*branch, username=commit.username)
             t, p, n, email, date, m = self.__commit_info(sha)
 
         ref, rev = self.map.get_ref_rev(sha)

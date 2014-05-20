@@ -13,7 +13,6 @@ class AuthMethod:
     def __init__(self, link, auth_db):
         self.link = link
         self.auth_db = auth_db
-        self.username = None
 
     def get_response(self):
         return self.link.read_str()
@@ -24,18 +23,10 @@ class AuthMethod:
     def do_auth(self):
         while True:
             try:
-                self.perform_auth()
-                break
+                return self.perform_auth()
             except AuthFailure, fail:
                 self.link.send_msg(gen.failure(*fail.args))
                 return False
-
-        self.link.send_msg(gen.success())
-
-        return True
-
-    def reauth(self):
-        self.link.send_msg(gen.success(gen.list(), gen.string('')))
 
 
 class CramMd5Auth(AuthMethod):
@@ -53,8 +44,8 @@ class CramMd5Auth(AuthMethod):
         if pass_hash != hmac.new(password, msg_id).hexdigest():
             raise AuthFailure(gen.string('incorrect password'))
 
-        print "Authenticated:", username
-        self.username = username
+        self.link.send_msg(gen.success())
+        return username
 
 
 auths = {
@@ -63,6 +54,10 @@ auths = {
 
 
 def perform_auth(link):
+    """
+
+    :type link: SvnRequestHandler
+    """
     auth_db = link.repos.get_auth()
 
     link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(link.repos.base_url)))
@@ -76,5 +71,6 @@ def perform_auth(link):
 
         auth = auths[auth_type](link, auth_db)
 
-        if auth.do_auth():
-            return auth
+        username = auth.do_auth()
+        if username:
+            return username

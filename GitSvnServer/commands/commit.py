@@ -166,7 +166,7 @@ class Commit (Command):
     def get_edits(self):
         self.root = None
         self.aborted = False
-        self.commit = self.link.repos.start_commit(self.link.url)
+        self.commit = self.link.repos.start_commit(self.link.url, self.link.username)
 
         self.link.send_msg(gen.success())
         raise ChangeMode('editor')
