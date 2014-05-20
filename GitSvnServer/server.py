@@ -226,7 +226,7 @@ class SvnRequestHandler(StreamRequestHandler):
 
                     elif self.mode == 'auth':
                         if self.auth is None:
-                            self.auth = auth.auth(self)
+                            self.auth = auth.perform_auth(self)
                             self.repos.set_username(self.auth.username)
                             self.mode = 'announce'
                         else:

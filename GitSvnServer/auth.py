@@ -1,22 +1,13 @@
-
-from email.Utils import make_msgid
 import hmac
+from email.utils import make_msgid
 
 import generate as gen
 import parse
 
-class DummyAuthDb (object):
-    def __init__(self, repos):
-        self.repos = repos
-
-    def get_password(self, username):
-        return ''
-
-class Needed(Exception):
-    pass
 
 class AuthFailure(Exception):
     pass
+
 
 class AuthMethod:
     def __init__(self, link, auth_db):
@@ -26,6 +17,9 @@ class AuthMethod:
 
     def get_response(self):
         return self.link.read_str()
+
+    def perform_auth(self):
+        raise NotImplemented()
 
     def do_auth(self):
         while True:
@@ -42,6 +36,7 @@ class AuthMethod:
 
     def reauth(self):
         self.link.send_msg(gen.success(gen.list(), gen.string('')))
+
 
 class CramMd5Auth(AuthMethod):
     def perform_auth(self):
@@ -61,11 +56,13 @@ class CramMd5Auth(AuthMethod):
         print "Authenticated:", username
         self.username = username
 
+
 auths = {
-    'CRAM-MD5' : CramMd5Auth,
+    'CRAM-MD5': CramMd5Auth,
 }
 
-def auth(link):
+
+def perform_auth(link):
     auth_db = link.repos.get_auth()
 
     link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(link.repos.base_url)))
@@ -74,8 +71,7 @@ def auth(link):
         auth_type = parse.msg(link.read_msg())[0]
 
         if auth_type not in auths:
-            link.send_msg(gen.failure(gen.string('unknown auth type: %s' \
-                                                 % auth_type)))
+            link.send_msg(gen.failure(gen.string('unknown auth type: %s' % auth_type)))
             continue
 
         auth = auths[auth_type](link, auth_db)
