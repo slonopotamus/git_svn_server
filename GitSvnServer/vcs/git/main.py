@@ -1,10 +1,10 @@
+from multiprocessing import Lock
 from email.utils import parseaddr
 import json
 import re
 import time
 import uuid
 
-from GitSvnServer import repos
 from GitSvnServer.errors import *
 from cat_file import *
 from data import *
@@ -86,14 +86,15 @@ tag_re = re.compile(r'^tags/(?P<tag>[^/]+)(/(?P<path>.*))?$')
 other_re = re.compile(r'^(?P<path>.*)$')
 
 
-class Git(repos.Repos):
+class Git(object):
     def __init__(self, location):
-        super(Git, self).__init__(location)
         self.map = GitMap(self, location)
+        self.lock = Lock()
         self.location = location
         self.auth_db = GitAuth(self, self.location)
         self.cat_file = GitCatFile(self.location)
         self.created_date = format_time(time.gmtime(0))
+        self.uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, self.location))
 
     def __get_git_data(self, command_string):
         git_data = GitData(self.location, command_string)
@@ -569,7 +570,7 @@ class Git(repos.Repos):
             yield (changed, rev, author, date, msg, has_children, revprops)
 
     def rev_proplist(self, rev):
-        raise repos.NotImplemented
+        raise NotImplemented()
 
     def get_props(self, url, rev, include_internal=True, mode=None):
         ref, path = self.__map_url(url)

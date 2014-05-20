@@ -3,9 +3,8 @@
 import optparse
 
 from GitSvnServer.server import SvnServer
-
 from GitSvnServer.config import Config
-from GitSvnServer.vcs.git import Git
+from GitSvnServer.vcs.git.main import Git
 
 
 version = "pre-alpha"
