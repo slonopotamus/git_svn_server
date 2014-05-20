@@ -1,7 +1,7 @@
-import generate as gen
 from errors import *
 
 commands = {}
+
 
 class MetaCommand(type):
     def __new__(cls, name, bases, klassDict):
@@ -20,16 +20,14 @@ class MetaCommand(type):
             commands[theKlass._cmd] = theKlass
         return theKlass
 
-class CmdStep:
-    def __init__(self):
-        self.next = 1
 
-    def __call__(self, f):
-        f._step_idx = self.next
-        self.next += 1
-        return f
+def need_repo_lock(f):
+    def call(self):
+        with self.link.repos.lock:
+            f(self)
 
-cmd_step = CmdStep()
+    return call
+
 
 class Command:
     __metaclass__ = MetaCommand
@@ -37,6 +35,11 @@ class Command:
     _cmd = None
 
     def __init__(self, link, args):
+        """
+
+        :type link: SvnRequestHandler
+        """
+        self.steps = []
         self.next_step = 0
         self.link = link
         self.args = args
@@ -137,6 +140,7 @@ class Command:
     def log_edit_error(self, errno, errstr):
         self.edit_errors.append((errno, errstr))
 
+
 class SimpleCommand(Command):
     def auth(self):
         raise ChangeMode('auth', 'command')
@@ -145,8 +149,8 @@ class SimpleCommand(Command):
         self.do_cmd()
 
     def do_cmd(self):
-        pass
+        raise NotImplemented()
 
     def __init__(self, link, args):
-        self.steps = [SimpleCommand.auth, SimpleCommand.main]
         Command.__init__(self, link, args)
+        self.steps = [SimpleCommand.auth, SimpleCommand.main]

@@ -1,11 +1,12 @@
-
 from GitSvnServer import parse
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
 
+
 class CheckPath(SimpleCommand):
     _cmd = 'check-path'
 
+    @need_repo_lock
     def do_cmd(self):
         repos = self.link.repos
         args = self.args
@@ -18,12 +19,6 @@ class CheckPath(SimpleCommand):
 
         if len(args) > 1 and len(args[1]) > 0:
             rev = int(args[1][0])
-
-##        ref, path = repos.parse_url(url)
-
-##        print "ref: %s" % ref
-##        print "path: %s" % path
-##        print "rev: %s" % rev
 
         type = repos.check_path(url, rev)
 

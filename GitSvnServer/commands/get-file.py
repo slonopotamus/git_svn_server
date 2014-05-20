@@ -1,4 +1,3 @@
-
 try:
     from hashlib import md5
 except ImportError:
@@ -8,9 +7,11 @@ from GitSvnServer import parse
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
 
-class GetFile (SimpleCommand):
+
+class GetFile(SimpleCommand):
     _cmd = 'get-file'
 
+    @need_repo_lock
     def do_cmd(self):
         repos = self.link.repos
         args = self.args
@@ -63,4 +64,3 @@ class GetFile (SimpleCommand):
             self.link.send_msg(gen.success())
 
         contents.close()
-

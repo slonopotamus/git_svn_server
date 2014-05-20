@@ -6,6 +6,7 @@ from GitSvnServer.cmd_base import *
 class GetDir(SimpleCommand):
     _cmd = 'get-dir'
 
+    @need_repo_lock
     def do_cmd(self):
         repos = self.link.repos
         args = self.args

@@ -3,9 +3,9 @@ import os
 import sqlite3
 
 class GitDb (object):
-    def __init__(self, git, repo_location):
+    def __init__(self, git, location):
         self.git = git
-        self.map_file = os.path.join(repo_location, 'svnserver', 'db')
+        self.map_file = os.path.join(location, 'svnserver', 'db')
 
     def connect(self):
         conn = sqlite3.connect(self.map_file)

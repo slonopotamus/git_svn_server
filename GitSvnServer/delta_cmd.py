@@ -1,10 +1,10 @@
-
 import Queue
 import threading
 
 from GitSvnServer import parse, svndiff
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
+
 
 try:
     from hashlib import md5
@@ -37,7 +37,7 @@ class DeltaCmd(Command):
 
     def get_reports(self):
         self.setup()
-        self.prev_revs = {'' : (None, True)}
+        self.prev_revs = {'': (None, True)}
         self.deleted_paths = []
         raise ChangeMode('report')
 
@@ -193,11 +193,7 @@ class DeltaCmd(Command):
             contents.close()
             return
         else:
-            # we want prev_contents to be independant of contents - hence the
-            # True in the call to get_file (asking for independant file
-            # contents)
-            prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev,
-                                                              True)
+            prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev)
 
         new_file = prev_contents is None
 
@@ -263,16 +259,17 @@ class DeltaCmd(Command):
         self.send(gen.tuple('close-file', gen.string(token),
                             gen.list(gen.string(csum))))
 
+    @need_repo_lock
     def do_complete(self):
         return self.complete()
 
     def __init__(self, link, args):
+        Command.__init__(self, link, args)
         self.steps = [
             DeltaCmd.auth,
             DeltaCmd.get_reports,
             DeltaCmd.do_complete,
         ]
-        Command.__init__(self, link, args)
 
     def setup(self):
         raise NotImplementedError()
@@ -291,6 +288,7 @@ class DeltaCmd(Command):
         thread.start()
 
         import time
+
         t1 = time.time()
         print "get contents"
         contents = repos.get_files(url, rev)

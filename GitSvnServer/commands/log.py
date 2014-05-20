@@ -6,6 +6,7 @@ from GitSvnServer.cmd_base import *
 class Log(SimpleCommand):
     _cmd = 'log'
 
+    @need_repo_lock
     def do_cmd(self):
         repos = self.link.repos
         args = self.args

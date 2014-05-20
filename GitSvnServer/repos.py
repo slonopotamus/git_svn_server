@@ -1,17 +1,20 @@
-
-import inspect
+from multiprocessing import Lock
 import re
 
 from config import config
 
+
 url_re = re.compile(r'^svn://(?P<host>[^/]+)/(?P<path>.*?)\s*$')
 
 
-class ReposError (Exception):
+class ReposError(Exception):
     pass
 
+
 repos_types = {}
-class ReposMeta (type):
+
+
+class ReposMeta(type):
     def __new__(mcs, name, bases, dict):
         klass = type.__new__(mcs, name, bases, dict)
         if klass._kind is not None:
@@ -19,11 +22,12 @@ class ReposMeta (type):
         return klass
 
 
-class Repos (object):
+class Repos(object):
     __metaclass__ = ReposMeta
     _kind = None
 
     def __init__(self, host, base, config):
+        self.lock = Lock()
         self.repos_base = base
         self.uuid = None
         self.base_url = 'svn://%s/%s' % (host, base)
@@ -80,15 +84,14 @@ class Repos (object):
 
 repos_list = {}
 
-
 repos_types_loaded = False
+
+
 def load_repos_types():
     global repos_types_loaded
 
     if repos_types_loaded:
         return
-
-    import vcs
 
     repos_types_loaded = True
 

@@ -1,6 +1,4 @@
-
 import cStringIO as StringIO
-import os
 
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
@@ -8,8 +6,9 @@ from GitSvnServer import parse, svndiff, hooks
 from GitSvnServer.errors import HookFailure
 
 
-class Dir (object):
+class Dir(object):
     dirs = {}
+
     def __init__(self, commit, path, token, parent_token=None, rev=None):
         self.commit = commit
         self.path = path
@@ -46,8 +45,9 @@ class Dir (object):
         return "Dir(%s %s%s)" % (self.token, self.path, f)
 
 
-class File (object):
+class File(object):
     files = {}
+
     def __init__(self, path, token, dir_token, commit, rev=None, source=None):
         self.path = path
         self.token = token
@@ -93,7 +93,7 @@ class File (object):
         return "File(%s %s)" % (self.token, self.path)
 
 
-class Commit (Command):
+class Commit(Command):
     _cmd = 'commit'
 
     def target_rev(self, rev):
@@ -158,11 +158,9 @@ class Commit (Command):
     def absent_file(self, path, parent_token):
         print "edit: absent_file"
 
-    @cmd_step
     def auth(self):
         raise ChangeMode('auth', 'command')
 
-    @cmd_step
     def get_edits(self):
         self.root = None
         self.aborted = False
@@ -171,7 +169,6 @@ class Commit (Command):
         self.link.send_msg(gen.success())
         raise ChangeMode('editor')
 
-    @cmd_step
     def do_commit(self):
         repos = self.link.repos
 
@@ -202,9 +199,12 @@ class Commit (Command):
         self.link.send_msg(gen.success())
         raise ChangeMode('auth', 'command')
 
-    @cmd_step
     def send_commit_info(self):
         if self.commit_info is None:
             return
 
         self.link.send_msg(self.commit_info)
+
+    def __init__(self, link, args):
+        Command.__init__(self, link, args)
+        self.steps = [Commit.auth, Commit.get_edits, Commit.do_commit, Commit.send_commit_info]

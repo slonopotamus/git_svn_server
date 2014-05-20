@@ -1,11 +1,12 @@
-
 from GitSvnServer import parse
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
 
+
 class Stat(SimpleCommand):
     _cmd = 'stat'
 
+    @need_repo_lock
     def do_cmd(self):
         repos = self.link.repos
         args = self.args

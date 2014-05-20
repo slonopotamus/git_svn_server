@@ -11,6 +11,10 @@ class AuthFailure(Exception):
 
 class AuthMethod:
     def __init__(self, link, auth_db):
+        """
+
+        :type link: SvnRequestHandler
+        """
         self.link = link
         self.auth_db = auth_db
 
@@ -37,7 +41,9 @@ class CramMd5Auth(AuthMethod):
         resp = self.get_response()
         username, pass_hash = resp.rsplit(' ', 1)
 
-        password = str(self.auth_db.get_password(username))
+        with self.link.repos.lock:
+            password = str(self.auth_db.get_password(username))
+
         if password is None:
             raise AuthFailure(gen.string('unknown user'))
 

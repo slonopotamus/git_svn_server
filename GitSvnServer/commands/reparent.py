@@ -1,9 +1,9 @@
-
 from GitSvnServer import parse
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
 
-class Reparent (SimpleCommand):
+
+class Reparent(SimpleCommand):
     _cmd = 'reparent'
 
     def do_cmd(self):
@@ -16,5 +16,3 @@ class Reparent (SimpleCommand):
             self.link.url = url
 
         self.link.send_msg(gen.success())
-
-
