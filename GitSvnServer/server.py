@@ -1,20 +1,20 @@
 #!/usr/bin/python
 
-import os
 import re
 from SocketServer import *
 import signal
 import sys
+import os
+import socket
 
 import auth
 import client
 import command
 import editor
 import report
-import socket
-
 import generate as gen
 from errors import *
+
 
 addr_family = socket.AF_INET
 all_interfaces = "0.0.0.0"
@@ -23,8 +23,11 @@ if socket.has_ipv6:
     all_interfaces = "::"
 
 ipv4_re = re.compile(r'\d{1,3}(\.\d{1,3}){3,3}')
+
+
 def is_ipv4_addr(ip):
     return ipv4_re.match(ip) is not None
+
 
 def get_address(ip, port):
     if ip is None:
@@ -36,14 +39,16 @@ def get_address(ip, port):
     else:
         address = (ip, port)
     return address
-    
+
 
 class SvnServer(ForkingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
-    def __init__(self, options):
+
+    def __init__(self, options, repo_map):
         self.options = options
         self.log = options.log
+        self.repo_map = repo_map
         address = get_address(options.ip, options.port)
         ForkingTCPServer.__init__(self, address, SvnRequestHandler)
 
@@ -98,11 +103,16 @@ class SvnServer(ForkingTCPServer):
 
 class SvnRequestHandler(StreamRequestHandler):
     def __init__(self, request, client_address, server):
+        """
+
+        :type server: SvnServer
+        """
         self.mode = 'connect'
         self.client_caps = None
         self.repos = None
         self.auth = None
         self.data = None
+        self.base_url = None
         self.url = None
         self.username = None
         self.command = None
@@ -207,8 +217,8 @@ class SvnRequestHandler(StreamRequestHandler):
         self.send('%s\n' % msg)
 
     def send_server_id(self):
-        self.send_msg(gen.success(gen.string(self.repos.get_uuid()),
-                                  gen.string(self.repos.base_url)))
+        self.send_msg(gen.success(gen.string(self.repos.uuid),
+                                  gen.string(self.base_url)))
 
     def handle(self):
         sys.stderr.write('%d: -- NEW CONNECTION --\n' % os.getpid())
@@ -217,8 +227,7 @@ class SvnRequestHandler(StreamRequestHandler):
                 sys.stdout.flush()
                 try:
                     if self.mode == 'connect':
-                        self.url, self.client_caps, self.repos = \
-                                  client.connect(self)
+                        self.url, self.client_caps, self.repos, self.base_url = client.connect(self)
 
                         if self.client_caps is None or self.repos is None:
                             return

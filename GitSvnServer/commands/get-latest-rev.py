@@ -12,7 +12,7 @@ class LatestRev(SimpleCommand):
         latest_rev = repos.get_latest_rev()
 
         if latest_rev is None:
-            msg = gen.error(210005, "No respository found in '%s'" % self.link.url)
+            msg = gen.error(210005, "No repository found in '%s'" % self.link.url)
         else:
             msg = gen.success(latest_rev)
 

@@ -1,40 +1,29 @@
-
 import re
 import sys
 
 repos_re = re.compile(r'^\[repos "(?P<url_base>.*)"\]\s*$')
 var_re = re.compile(r'^\s+(?P<name>\S+)\s*=\s*((?P<value>\S+)|"(?P<qvalue>.*)")\s*$')
 
+
 class ConfigError(Exception):
     pass
 
-class Repos:
-    location = ''
-    kind = 'git'
-
-    def __str__(self):
-        s = ""
-        for a in [x for x in Repos.__dict__ if not x.startswith('_')]:
-            s += "  %s: %s\n" % (a, self.__dict__[a])
-        return s
 
 class Config:
-    def __init__(self, name=None):
+    def __init__(self, filename):
         self.repos = {}
-        self.filename = name
+        self.filename = filename
 
-    def load(self, filename=None):
-        if filename is not None:
-            self.filename = filename
+    def load(self):
         try:
             self.__parse()
         except Exception, e:
             print >> sys.stderr, "Failed to load configuration from '%s':\n%s" \
-                  % (self.filename, str(e))
+                                 % (self.filename, str(e))
             sys.exit(1)
 
     def __parse(self):
-        repos = None
+        repo_config = None
 
         if self.filename is None:
             return
@@ -51,17 +40,16 @@ class Config:
                 while url_base[-1] == '/':
                     url_base = url_base[:-2]
                 if url_base in self.repos:
-                    raise ConfigError('Duplicate repos specification', line_no)
-                repos = Repos()
-                self.repos[url_base] = repos
-            elif var_m is not None and repos is not None:
+                    raise ConfigError('Duplicate repo_config specification', line_no)
+                repo_config = {}
+                self.repos[url_base] = repo_config
+            elif var_m is not None and repo_config is not None:
                 name = var_m.group('name').lower()
                 value = var_m.group('qvalue')
                 if value is None:
                     value = var_m.group('value')
-                if name in [x for x in Repos.__dict__ if not x.startswith('_')]:
-                    repos.__dict__.setdefault(name, value)
 
+                repo_config[name] = value
         f.close()
 
     def __str__(self):
@@ -69,5 +57,3 @@ class Config:
         for name, repos in self.repos.items():
             s += "%s\n%s" % (name, repos)
         return s
-
-config = Config('/etc/git-svnserver/config')

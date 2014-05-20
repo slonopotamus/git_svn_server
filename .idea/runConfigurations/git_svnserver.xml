@@ -14,7 +14,9 @@
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/git-svnserver" />
     <option name="PARAMETERS" value="-c config.example -d" />
     <RunnerSettings RunnerId="PyDebugRunner" />
+    <RunnerSettings RunnerId="PythonRunner" />
     <ConfigurationWrapper RunnerId="PyDebugRunner" />
+    <ConfigurationWrapper RunnerId="PythonRunner" />
     <method />
   </configuration>
 </component>

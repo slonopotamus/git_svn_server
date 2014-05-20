@@ -66,7 +66,7 @@ def perform_auth(link):
     """
     auth_db = link.repos.get_auth()
 
-    link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(link.repos.base_url)))
+    link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(link.base_url)))
 
     while True:
         auth_type = parse.msg(link.read_msg())[0]

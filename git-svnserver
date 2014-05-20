@@ -1,40 +1,43 @@
 #!/usr/bin/python
 
-import GitSvnServer
 import optparse
+
+from GitSvnServer.server import SvnServer
+
+from GitSvnServer.config import Config
+from GitSvnServer.vcs.git import Git
 
 
 version = "pre-alpha"
 
-
 description = \
-"""This program attempts to server one or more git repositories using the
-Subversion svn:// protocol.
-"""
+    """This program attempts to server one or more git repositories using the
+    Subversion svn:// protocol.
+    """
 
 epilog = \
-"""WARNING: Currently there is a lot that doesn't work at all, doesn't work
-properly, or doesn't handle errors.  Anyone who configures this program to
-serve a git repository that isn't disposable is possibly insane, and certainly
-on the own.
-"""
+    """WARNING: Currently there is a lot that doesn't work at all, doesn't work
+    properly, or doesn't handle errors.  Anyone who configures this program to
+    serve a git repository that isn't disposable is possibly insane, and certainly
+    on the own.
+    """
 
 
 def main():
-    parser = optparse.OptionParser(description = description,
-                                   epilog = epilog,
-                                   version = version)
+    parser = optparse.OptionParser(description=description,
+                                   epilog=epilog,
+                                   version=version)
 
-    parser.add_option('-c', '--config', metavar='CONFIG', default=None,
+    parser.add_option('-c', '--config', metavar='CONFIG', default='/etc/git-svnserver/config',
                       help='Load configuration from CONFIG')
 
     parser.add_option('-i', '--ip', metavar='ADDRESS', default=None,
                       help='Bind to the specifed IP address (can be v6 if '
-                      'supported by Python).  The default is all addresses.')
+                           'supported by Python).  The default is all addresses.')
 
     parser.add_option('-p', '--port', metavar='PORT', default=3690, type='int',
                       help='Bind to the specified port number, instead of '
-                      'the default SVN port.')
+                           'the default SVN port.')
 
     parser.add_option('-f', '--foreground', default=False, action="store_true",
                       help='Run in the foreground instead of as a daemon.')
@@ -51,18 +54,23 @@ def main():
     parser.add_option('-m', '--show-messages', default=False,
                       action='store_true',
                       help='Include the contents of messages sent and received '
-                      'in the debug/log output.')
+                           'in the debug/log output.')
 
     parser.add_option('', '--max-message-debug-len', default=0, type='int',
                       metavar='LENGTH',
                       help='The maximum length of a message that should be '
-                      'written to the log (longer messages will be truncated)')
+                           'written to the log (longer messages will be truncated)')
 
     options, args = parser.parse_args()
 
-    GitSvnServer.config.load(options.config)
+    config = Config(options.config)
+    config.load()
 
-    server = GitSvnServer.SvnServer(options)
+    repo_map = {}
+    for url_base, config in config.repos.items():
+        repo_map[url_base] = Git(config['location'])
+
+    server = SvnServer(options, repo_map)
     server.start()
 
 

@@ -1,25 +1,21 @@
-
 from email.utils import parseaddr
 import json
-import os
 import re
 import time
 import uuid
 
 from GitSvnServer import repos
 from GitSvnServer.errors import *
-
 from cat_file import *
 from data import *
 from db import *
-
 
 
 def format_time(timestamp):
     return time.strftime('%Y-%m-%dT%H:%M:%S.000000Z', timestamp)
 
 
-class GitFile (object):
+class GitFile(object):
     def __init__(self, commit=None, path=None, location=None):
         self.commit = commit
         self.path = path
@@ -40,7 +36,7 @@ class GitFile (object):
         return sha1
 
 
-class GitCommit (object):
+class GitCommit(object):
     def __init__(self, repos, url, ref, parent, prefix, username):
         self.repos = repos
         self.url = url
@@ -80,26 +76,27 @@ class GitCommit (object):
         self.dirs.setdefault(path, {}).setdefault('props', {})[name] = value
 
 
-class GitError (Exception):
+class GitError(Exception):
     pass
 
 
-class Git (repos.Repos):
-    _kind = 'git'
+trunk_re = re.compile(r'^trunk(/(?P<path>.*))?$')
+branch_re = re.compile(r'^branches/(?P<branch>[^/]+)(/(?P<path>.*))?$')
+tag_re = re.compile(r'^tags/(?P<tag>[^/]+)(/(?P<path>.*))?$')
+other_re = re.compile(r'^(?P<path>.*)$')
 
-    def __init__(self, host, base, config):
-        super(Git, self).__init__(host, base, config)
-        self.map = GitMap(self, config.location)
-        self.auth_db = GitAuth(self, self.config.location)
-        self.cat_file = GitCatFile(config.location)
-        self.trunk_re = re.compile(r'^%s/trunk(/(?P<path>.*))?$' % self.base_url)
-        self.branch_re = re.compile(r'^%s/branches/(?P<branch>[^/]+)(/(?P<path>.*))?$' % self.base_url)
-        self.tag_re = re.compile(r'^%s/tags/(?P<tag>[^/]+)(/(?P<path>.*))?$' % self.base_url)
-        self.other_re = re.compile(r'^%s(/(?P<path>.*))?$' % self.base_url)
+
+class Git(repos.Repos):
+    def __init__(self, location):
+        super(Git, self).__init__(location)
+        self.map = GitMap(self, location)
+        self.location = location
+        self.auth_db = GitAuth(self, self.location)
+        self.cat_file = GitCatFile(self.location)
         self.created_date = format_time(time.gmtime(0))
 
     def __get_git_data(self, command_string):
-        git_data = GitData(self.config.location, command_string)
+        git_data = GitData(self.location, command_string)
 
         git_data.open()
 
@@ -114,13 +111,13 @@ class Git (repos.Repos):
         return data
 
     def __map_url(self, url):
-        if url == self.base_url:
+        if url == '':
             return (None, '')
 
-        trunk_m = self.trunk_re.search(url)
-        branch_m = self.branch_re.search(url)
-        tag_m = self.tag_re.search(url)
-        other_m = self.other_re.search(url)
+        trunk_m = trunk_re.search(url)
+        branch_m = branch_re.search(url)
+        tag_m = tag_re.search(url)
+        other_m = other_re.search(url)
 
         if trunk_m:
             path = trunk_m.group('path')
@@ -153,9 +150,6 @@ class Git (repos.Repos):
 
         if type == 'tree':
             return 'dir'
-
-    def _calc_uuid(self):
-        self.uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, self.base_url))
 
     def get_latest_rev(self):
         return self.map.get_latest_rev()
@@ -235,7 +229,7 @@ class Git (repos.Repos):
 
         msg = '\n'.join(data[c:])
 
-        tz_secs = 60 * (60 * (tz/100) + (tz%100))
+        tz_secs = 60 * (60 * (tz / 100) + (tz % 100))
 
         date = format_time(time.gmtime(when + tz_secs))
 
@@ -267,7 +261,7 @@ class Git (repos.Repos):
 
         msg = '\n'.join(data[c:])
 
-        tz_secs = 60 * (60 * (tz/100) + (tz%100))
+        tz_secs = 60 * (60 * (tz / 100) + (tz % 100))
 
         date = format_time(time.gmtime(when + tz_secs))
 
@@ -325,7 +319,7 @@ class Git (repos.Repos):
         if data.startswith('link '):
             mode = '120000'
             cmd = '--bare hash-object -w --stdin'
-            ho = GitData(self.config.location, cmd)
+            ho = GitData(self.location, cmd)
             ho.write(data[5:])
             ho.close_stdin()
             sha = ho.read().strip()
@@ -346,7 +340,7 @@ class Git (repos.Repos):
     def __svn_internal_props(self, changed, by, at):
         props = []
 
-        props.append(('svn:entry:uuid', self.get_uuid()))
+        props.append(('svn:entry:uuid', self.uuid))
         props.append(('svn:entry:committed-rev', str(changed)))
         props.append(('svn:entry:committed-date', at))
 
@@ -496,7 +490,7 @@ class Git (repos.Repos):
 
         for mode, type, sha, size, name in self.__ls_tree(sha1, path):
             kind = self.__map_type(type)
-            if include_changed :
+            if include_changed:
                 changed, by, at = self.__get_last_changed(sha1, name, rev=rev)
             else:
                 changed, by, at = None, None, None
@@ -555,7 +549,7 @@ class Git (repos.Repos):
                     else:
                         tmod = True
                     p = '/' + p
-                    prev  = changed.get(p, None)
+                    prev = changed.get(p, None)
                     if prev is None:
                         changed[p] = (c, None, None, kind, tmod, pmod)
                         continue
@@ -615,7 +609,7 @@ class Git (repos.Repos):
         prev_ref, prev_path = self.__map_url(prev_url)
 
         if path != prev_path:
-            raise(foo)
+            raise (foo)
 
         old_sha = self.map.find_commit(ref, rev)
         new_sha = self.map.find_commit(prev_ref, prev_rev)
@@ -675,7 +669,7 @@ class Git (repos.Repos):
             if line.startswith('/d/'):
                 when = int(line[3:-6].strip())
                 tz = int(line[-5:].strip())
-                tz_secs = 60 * (60 * (tz/100) + (tz%100))
+                tz_secs = 60 * (60 * (tz / 100) + (tz % 100))
                 date = format_time(time.gmtime(when + tz_secs))
                 continue
 
@@ -802,7 +796,7 @@ class Git (repos.Repos):
 
         data = json.dumps(external_props)
 
-        f = GitFile(location=self.config.location)
+        f = GitFile(location=self.location)
         f.write(data)
         sha1 = f.close()
 
@@ -845,7 +839,7 @@ class Git (repos.Repos):
         self.__get_git_data(cmd)
 
         cmd = '--bare update-index --add --index-info'
-        ui = GitData(self.config.location, cmd)
+        ui = GitData(self.location, cmd)
 
         for relpath, data in commit.dirs.items():
             path = os.path.join(commit.prefix, relpath)
@@ -855,7 +849,7 @@ class Git (repos.Repos):
             # we want to commit a .gitignore file even if the svn:ignore
             # property is empty - as we use the .gitignore file to represent the
             # directory since git won't track them directly.
-            f = GitFile(location=self.config.location)
+            f = GitFile(location=self.location)
             f.write(props.get('svn:ignore', ''))
             sha = f.close()
 
@@ -869,7 +863,7 @@ class Git (repos.Repos):
             path = os.path.join(commit.prefix, relpath)
 
             if 'delete' in data:
-                ui.write('%s %s\t%s\n' % ('0', '0'*40, path))
+                ui.write('%s %s\t%s\n' % ('0', '0' * 40, path))
                 continue
 
             if 'sha1' in data:
@@ -908,7 +902,7 @@ class Git (repos.Repos):
         tree = self.__get_git_data(cmd)[0]
 
         cmd = '--bare commit-tree %s -p %s' % (tree, commit.parent)
-        ct = GitData(self.config.location, cmd)
+        ct = GitData(self.location, cmd)
         ct.write(msg)
         ct.close_stdin()
         commit_sha = ct.read().strip()
@@ -917,7 +911,7 @@ class Git (repos.Repos):
         cmd = 'push --porcelain . %s:%s' % (commit_sha, commit.ref)
         self.__get_git_data(cmd)
 
-        index_file = os.path.join(self.config.location, index_file)
+        index_file = os.path.join(self.location, index_file)
         if os.path.exists(index_file):
             os.remove(index_file)
 
@@ -955,8 +949,7 @@ class Git (repos.Repos):
             sign = '+'
         date = '%d %s%02d%02d' % (int(timestamp), sign, hours, minutes // 60)
 
-        import sys
-        mktag = GitData(self.config.location, 'mktag')
+        mktag = GitData(self.location, 'mktag')
         mktag.write('object %s\n' % sha1)
         mktag.write('type commit\n')
         mktag.write('tag %s\n' % name)
@@ -1000,7 +993,7 @@ class Git (repos.Repos):
 
         cmd = '--bare commit-tree %s -p %s' % (tree, sha1)
         print cmd
-        ct = GitData(self.config.location, cmd)
+        ct = GitData(self.location, cmd)
         ct.write(msg)
         ct.close_stdin()
         commit_sha = ct.read().strip()
@@ -1059,7 +1052,7 @@ class Git (repos.Repos):
 
         if len(commit.files) > 0:
             raise HookFailure(1, "General commits are only permitted to trunk, "
-                              "or an existing branch.")
+                                 "or an existing branch.")
 
         tag = None
         branch = None
@@ -1069,24 +1062,24 @@ class Git (repos.Repos):
             print "..", ref, path
             if ref is None:
                 raise HookFailure(1, "Only commits to trunk, tags and branches"
-                                  " are permitted.")
+                                     " are permitted.")
             if path != '':
                 raise HookFailure(1, "You may not commit to a non-existant tag"
-                                  " or branch.")
+                                     " or branch.")
             url = data.get('url', None)
             rev = data.get('rev', None)
             if ref.startswith('refs/tags/'):
                 if tag is not None or branch is not None:
                     raise HookFailure(1, "Only one branch or tag may be "
-                                      "created per commit.")
+                                         "created per commit.")
                 if url is None or rev is None:
                     raise HookFailure(1, "A tag may only be created by copying"
-                                      " an existing tag or branch")
+                                         " an existing tag or branch")
                 tag = ref[10:], url, rev, msg
             elif ref.startswith('refs/heads/'):
                 if tag is not None or branch is not None:
                     raise HookFailure(1, "Only one branch or tag may be "
-                                      "created per commit.")
+                                         "created per commit.")
                 branch = ref[11:], url, rev, msg
 
         if tag is not None:

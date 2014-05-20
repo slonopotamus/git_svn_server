@@ -1,46 +1,12 @@
 from multiprocessing import Lock
-import re
-
-from config import config
-
-
-url_re = re.compile(r'^svn://(?P<host>[^/]+)/(?P<path>.*?)\s*$')
-
-
-class ReposError(Exception):
-    pass
-
-
-repos_types = {}
-
-
-class ReposMeta(type):
-    def __new__(mcs, name, bases, dict):
-        klass = type.__new__(mcs, name, bases, dict)
-        if klass._kind is not None:
-            repos_types[klass._kind] = klass
-        return klass
+import uuid
 
 
 class Repos(object):
-    __metaclass__ = ReposMeta
-    _kind = None
-
-    def __init__(self, host, base, config):
+    def __init__(self, location):
         self.lock = Lock()
-        self.repos_base = base
-        self.uuid = None
-        self.base_url = 'svn://%s/%s' % (host, base)
-        self.config = config
-
-    def _calc_uuid(self):
-        raise NotImplemented()
-
-    def get_uuid(self):
-        if self.uuid is None:
-            self._calc_uuid()
-
-        return self.uuid
+        self.location = location
+        self.uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, self.location))
 
     def get_latest_rev(self):
         raise NotImplemented()
@@ -80,47 +46,3 @@ class Repos(object):
 
     def get_auth(self):
         raise NotImplemented()
-
-
-repos_list = {}
-
-repos_types_loaded = False
-
-
-def load_repos_types():
-    global repos_types_loaded
-
-    if repos_types_loaded:
-        return
-
-    repos_types_loaded = True
-
-
-def get_repos(host, base, config):
-    if base in repos_list:
-        return repos_list[base]
-    else:
-        if config.kind in repos_types:
-            r = repos_types[config.kind](host, base, config)
-        else:
-            raise ReposError('Unknown repository kind: %s' % config.kind)
-        repos_list[base] = r
-        return r
-
-
-def find_repos(url):
-    url_m = url_re.match(url)
-
-    if url_m is None:
-        return None
-
-    load_repos_types()
-
-    host = url_m.group('host')
-    path = url_m.group('path')
-
-    for base, repos in config.repos.items():
-        if path.startswith(base):
-            return get_repos(host, base, repos)
-
-    return None
