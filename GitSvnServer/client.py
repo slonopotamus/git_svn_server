@@ -2,7 +2,6 @@ import parse
 import generate as gen
 from errors import *
 
-
 server_capabilities = [
     'edit-pipeline',  # This is required.
     'svndiff1',  # We support svndiff1
@@ -13,8 +12,14 @@ server_capabilities = [
 ]
 
 
-def parse_client_greeting(msg_str):
-    msg = parse.msg(msg_str)
+def connect(link):
+    # Send the announce message - we only support protocol version 2.
+    """
+
+    :type link: SvnRequestHandler
+    """
+    link.send_msg(gen.success(2, 2, gen.list(), gen.list(*server_capabilities)))
+    msg = parse.msg(link.read_msg())
 
     proto_ver = int(msg[0])
     client_caps = msg[1]
@@ -24,22 +29,7 @@ def parse_client_greeting(msg_str):
     print "caps: %s" % client_caps
     print "url: %s" % url
 
-    return proto_ver, client_caps, url
-
-
-def connect(link):
-    # Send the announce message - we only support protocol version 2.
-    """
-
-    :type link: SvnRequestHandler
-    """
-    link.send_msg(gen.success(2, 2, gen.list(), gen.list(*server_capabilities)))
-
-    client_resp = link.read_msg()
-
-    ver, caps, url = parse_client_greeting(client_resp)
-
-    if ver != 2:
+    if proto_ver != 2:
         raise BadProtoVersion()
 
     repo, path, base_url = link.server.find_repo(url)
@@ -49,4 +39,4 @@ def connect(link):
                                            gen.string("No repository found in '%s'" % url),
                                            gen.string('message.py'), 0)))
 
-    return path, caps, repo, base_url
+    return path, client_caps, repo, base_url
