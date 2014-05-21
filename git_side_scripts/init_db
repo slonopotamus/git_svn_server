@@ -4,14 +4,6 @@
 import os
 import sqlite3
 
-users = """
-CREATE TABLE users (
-  username VARCHAR PRIMARY KEY,
-  name VARCHAR,
-  email VARCHAR,
-  password VARCHAR);
-"""
-
 transactions = """
 CREATE TABLE transactions (
   revision INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +21,6 @@ def main():
     conn = sqlite3.connect('svnserver/db', isolation_level='IMMEDIATE')
 
     # Create tables
-    conn.execute(users)
     conn.execute(transactions)
 
     conn.commit()

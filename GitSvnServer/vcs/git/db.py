@@ -1,8 +1,8 @@
-
 import os
 import sqlite3
 
-class GitDb (object):
+
+class GitDb(object):
     def __init__(self, git, location):
         self.git = git
         self.map_file = os.path.join(location, 'svnserver', 'db')
@@ -19,23 +19,7 @@ class GitDb (object):
         return results
 
 
-class GitAuth (GitDb):
-    def get_user_details(self, username):
-        sql = 'SELECT name, email FROM users WHERE username = ?'
-        rows = self.execute(sql, username)
-        if len(rows) == 0:
-            return None, None
-        return rows[0]['name'], rows[0]['email']
-
-    def get_password(self, username):
-        sql = 'SELECT password FROM users WHERE username = ?'
-        rows = self.execute(sql, username)
-        if len(rows) == 0:
-            return None
-        return rows[0]['password']
-
-
-class GitMap (GitDb):
+class GitMap(GitDb):
     def get_latest_rev(self):
         conn = self.connect()
         sql = 'SELECT revision FROM transactions ORDER BY revision DESC'

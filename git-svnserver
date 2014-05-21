@@ -3,7 +3,6 @@
 import optparse
 
 from GitSvnServer.server import SvnServer
-from GitSvnServer.config import create_repos
 
 
 version = "pre-alpha"
@@ -61,9 +60,7 @@ def main():
 
     options, args = parser.parse_args()
 
-    repo_map = create_repos(options.config)
-
-    server = SvnServer(options, repo_map)
+    server = SvnServer(options)
     server.start()
 
 

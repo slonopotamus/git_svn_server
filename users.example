@@ -1,0 +1,9 @@
+[login]
+password: password
+name: Example User
+email: user@example.com
+
+[user2]
+password: Secret99
+name: Vasya Pupkin
+email: vasya@pupkin.ru

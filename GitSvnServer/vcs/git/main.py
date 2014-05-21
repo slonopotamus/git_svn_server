@@ -37,7 +37,11 @@ class GitFile(object):
 
 
 class GitCommit(object):
-    def __init__(self, repos, url, ref, parent, prefix, username):
+    def __init__(self, repos, url, ref, parent, prefix, user):
+        """
+
+        :type user: User
+        """
         self.repos = repos
         self.url = url
         self.ref = ref
@@ -45,7 +49,7 @@ class GitCommit(object):
         self.prefix = prefix
         self.dirs = {}
         self.files = {}
-        self.username = username
+        self.user = user
 
     def remove_path(self, path):
         self.files.setdefault(path, {})['delete'] = True
@@ -87,11 +91,11 @@ other_re = re.compile(r'^(?P<path>.*)$')
 
 
 class Git(object):
-    def __init__(self, location):
+    def __init__(self, location, users):
+        self.users = users
         self.map = GitMap(self, location)
         self.lock = Lock()
         self.location = location
-        self.auth_db = GitAuth(self, self.location)
         self.cat_file = GitCatFile(self.location)
         self.created_date = format_time(time.gmtime(0))
         self.uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, self.location))
@@ -829,12 +833,10 @@ class Git(object):
         index_file = 'svnserver/%s.idx' % uuid.uuid4()
         os.environ['GIT_INDEX_FILE'] = index_file
 
-        name, email = self.auth_db.get_user_details(commit.username)
-
-        os.environ['GIT_AUTHOR_NAME'] = name
-        os.environ['GIT_AUTHOR_EMAIL'] = email
-        os.environ['GIT_COMMITTER_NAME'] = name
-        os.environ['GIT_COMMITTER_EMAIL'] = email
+        os.environ['GIT_AUTHOR_NAME'] = commit.user.name
+        os.environ['GIT_AUTHOR_EMAIL'] = commit.user.email
+        os.environ['GIT_COMMITTER_NAME'] = commit.user.name
+        os.environ['GIT_COMMITTER_EMAIL'] = commit.user.email
 
         cmd = '--bare read-tree %s' % commit.parent
         self.__get_git_data(cmd)
@@ -924,14 +926,12 @@ class Git(object):
 
         return commit_sha
 
-    def do_tag(self, name, url, rev, msg, username=''):
+    def do_tag(self, name, url, rev, msg, user):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
         print "create tag %s from %s@%d" % (name, url, rev)
         print "create tag %s from %s[%s]" % (name, ref, sha1[:8])
-
-        uname, email = self.auth_db.get_user_details(username)
 
         timestamp = time.time()
         now = time.localtime(timestamp)
@@ -954,7 +954,7 @@ class Git(object):
         mktag.write('object %s\n' % sha1)
         mktag.write('type commit\n')
         mktag.write('tag %s\n' % name)
-        mktag.write('tagger %s <%s> %s\n' % (uname, email, date))
+        mktag.write('tagger %s <%s> %s\n' % (user.name, user.email, date))
         if len(msg) > 0:
             mktag.write('\n%s\n' % msg)
         mktag.close_stdin()
@@ -968,7 +968,7 @@ class Git(object):
 
         return tag_sha
 
-    def do_branch(self, name, url, rev, msg, username=''):
+    def do_branch(self, name, url, rev, msg, user):
         ref, path = self.__map_url(url)
         sha1 = self.map.find_commit(ref, rev)
 
@@ -983,12 +983,10 @@ class Git(object):
 
         os.environ['GIT_INDEX_FILE'] = 'svnserver/tmp-index'
 
-        uname, email = self.auth_db.get_user_details(username)
-
-        os.environ['GIT_AUTHOR_NAME'] = uname
-        os.environ['GIT_AUTHOR_EMAIL'] = email
-        os.environ['GIT_COMMITTER_NAME'] = uname
-        os.environ['GIT_COMMITTER_EMAIL'] = email
+        os.environ['GIT_AUTHOR_NAME'] = user.name
+        os.environ['GIT_AUTHOR_EMAIL'] = user.email
+        os.environ['GIT_COMMITTER_NAME'] = user.uname
+        os.environ['GIT_COMMITTER_EMAIL'] = user.email
 
         tree, p, n, e, d, m = self.__commit_info(sha1)
 
@@ -1014,7 +1012,11 @@ class Git(object):
 
         return commit_sha
 
-    def start_commit(self, url, username):
+    def start_commit(self, url, user):
+        """
+
+        :type user: User
+        """
         ref, path = self.__map_url(url)
 
         parent = None
@@ -1027,7 +1029,7 @@ class Git(object):
 
         print 'ref: %s, path: %s, parent: %s' % (ref, path, parent)
 
-        return GitCommit(self, url, ref, parent, path, username)
+        return GitCommit(self, url, ref, parent, path, user)
 
     def complete_simple_commit(self, commit, msg):
         if commit.ref.startswith('refs/tags/'):
@@ -1084,14 +1086,11 @@ class Git(object):
                 branch = ref[11:], url, rev, msg
 
         if tag is not None:
-            sha = self.do_tag(*tag, username=commit.username)
+            sha = self.do_tag(*tag, user=commit.user)
             o, t, tn, n, email, date, m = self.__tag_info(sha)
         elif branch is not None:
-            sha = self.do_branch(*branch, username=commit.username)
+            sha = self.do_branch(*branch, user=commit.user)
             t, p, n, email, date, m = self.__commit_info(sha)
 
         ref, rev = self.map.get_ref_rev(sha)
         return rev, date, email, ""
-
-    def get_auth(self):
-        return self.auth_db

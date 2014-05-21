@@ -7,6 +7,8 @@ import sys
 import os
 import socket
 
+from GitSvnServer.config import load_config
+
 import auth
 import client
 import command
@@ -47,10 +49,11 @@ class SvnServer(ThreadingTCPServer):
     url_re = re.compile(r'^svn://(?P<host>[^/]+)/(?P<path>.*?)\s*$')
 
 
-    def __init__(self, options, repo_map):
+    def __init__(self, options):
         self.options = options
         self.log = options.log
-        self.repo_map = repo_map
+        self.repo_map, self.users = load_config(options.config)
+
         address = get_address(options.ip, options.port)
         ThreadingTCPServer.__init__(self, address, SvnRequestHandler)
 
@@ -128,11 +131,12 @@ class SvnRequestHandler(StreamRequestHandler):
         self.mode = 'connect'
         self.client_caps = None
         self.repos = None
+        self.server = server
         self.auth = None
         self.data = None
         self.base_url = None
         self.url = None
-        self.username = None
+        self.user = None
         self.command = None
         self.options = server.options
         StreamRequestHandler.__init__(self, request, client_address, server)
@@ -232,15 +236,15 @@ class SvnRequestHandler(StreamRequestHandler):
                         self.mode = 'auth'
 
                     elif self.mode == 'auth':
-                        if self.username is None:
-                            self.username = auth.perform_auth(self)
+                        if self.user is None:
+                            self.user = auth.perform_auth(self, self.server.users)
                             self.mode = 'announce'
                         else:
                             self.send_msg(gen.success(gen.list(), gen.string('')))
                             self.mode = self.data
                             self.data = None
 
-                        if self.username is None:
+                        if self.user is None:
                             return
 
                     elif self.mode == 'announce':

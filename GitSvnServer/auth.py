@@ -35,23 +35,25 @@ class AuthMethod:
 
 class CramMd5Auth(AuthMethod):
     def perform_auth(self):
+        """
+
+        :rtype : User
+        """
         msg_id = make_msgid()
         self.link.send_msg(gen.tuple('step', gen.string(msg_id)))
 
         resp = self.get_response()
         username, pass_hash = resp.rsplit(' ', 1)
 
-        with self.link.repos.lock:
-            password = str(self.auth_db.get_password(username))
-
-        if password is None:
+        user = self.auth_db.get(username, None)
+        if user is None:
             raise AuthFailure(gen.string('unknown user'))
 
-        if pass_hash != hmac.new(password, msg_id).hexdigest():
+        if pass_hash != hmac.new(user.password, msg_id).hexdigest():
             raise AuthFailure(gen.string('incorrect password'))
 
         self.link.send_msg(gen.success())
-        return username
+        return user
 
 
 auths = {
@@ -59,13 +61,13 @@ auths = {
 }
 
 
-def perform_auth(link):
+def perform_auth(link, auth_db):
     """
+
 
     :type link: SvnRequestHandler
+    :rtype : User
     """
-    auth_db = link.repos.get_auth()
-
     link.send_msg(gen.success(gen.list(*auths.keys()), gen.string(link.base_url)))
 
     while True:
@@ -77,6 +79,6 @@ def perform_auth(link):
 
         auth = auths[auth_type](link, auth_db)
 
-        username = auth.do_auth()
-        if username:
-            return username
+        user = auth.do_auth()
+        if user:
+            return user

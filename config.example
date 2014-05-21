@@ -1,3 +1,9 @@
+# Special section with global parameters
+[global]
+
+# Path to users config file
+users_config: users.example
+
 # Section names are used for url mapping.
 # This repository will be available at svn://localhost/foo
 [foo]
