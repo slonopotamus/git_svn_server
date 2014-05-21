@@ -76,7 +76,6 @@ class SvnServer(ThreadingTCPServer):
     def stop(self, *args):
         print 'stopped serving'
         if self.log is not None:
-            sys.stdout.flush()
             sys.stdout.close()
         sys.exit(0)
 
@@ -97,7 +96,6 @@ class SvnServer(ThreadingTCPServer):
         print 'stopped serving'
 
         if self.log is not None:
-            sys.stdout.flush()
             sys.stdout.close()
 
 
@@ -166,7 +164,6 @@ class SvnRequestHandler(StreamRequestHandler):
 
             t += ch
 
-        self.debug(t)
         return t
 
     def read(self, count):
@@ -211,7 +208,6 @@ class SvnRequestHandler(StreamRequestHandler):
     def send(self, msg):
         self.debug(msg, send=True)
         self.wfile.write('%s' % msg)
-        self.wfile.flush()
 
     def send_msg(self, msg):
         self.send('%s\n' % msg)
@@ -225,7 +221,6 @@ class SvnRequestHandler(StreamRequestHandler):
         msg = None
         try:
             while True:
-                sys.stdout.flush()
                 try:
                     if self.mode == 'connect':
                         self.url, self.client_caps, self.repos, self.base_url = client.connect(self)
@@ -275,4 +270,3 @@ class SvnRequestHandler(StreamRequestHandler):
             errno, msg = e
         sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
                          (os.getpid(), msg))
-        sys.stderr.flush()
