@@ -115,9 +115,6 @@ class SvnRequestHandler(StreamRequestHandler):
         self.username = None
         self.command = None
         self.options = server.options
-        if server.log is not None:
-            sys.stdout = open(server.log, 'a')
-            sys.stderr = sys.stdout
         StreamRequestHandler.__init__(self, request, client_address, server)
 
     def debug(self, msg, send=False):
