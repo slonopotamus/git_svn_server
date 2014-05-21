@@ -1,5 +1,3 @@
-import re
-
 import parse
 import generate as gen
 from errors import *
@@ -29,27 +27,6 @@ def parse_client_greeting(msg_str):
     return proto_ver, client_caps, url
 
 
-url_re = re.compile(r'^svn://(?P<host>[^/]+)/(?P<path>.*?)\s*$')
-
-
-def find_repo(link, url):
-    url_m = url_re.match(url)
-
-    if url_m is None:
-        return None
-
-    host = url_m.group('host')
-    path = url_m.group('path')
-
-    for base, repo in link.server.repo_map.items():
-        if path.startswith(base + '/'):
-            return repo, path[len(base) + 1:], 'svn://%s/%s' % (host, base)
-        elif path == base:
-            return repo, '', 'svn://%s/%s' % (host, base)
-
-    return None, None, None
-
-
 def connect(link):
     # Send the announce message - we only support protocol version 2.
     """
@@ -65,7 +42,7 @@ def connect(link):
     if ver != 2:
         raise BadProtoVersion()
 
-    repo, path, base_url = find_repo(link, url)
+    repo, path, base_url = link.server.find_repo(url)
 
     if repo is None:
         link.send_msg(gen.failure(gen.list(210005,

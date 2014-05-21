@@ -44,6 +44,8 @@ def get_address(ip, port):
 class SvnServer(ThreadingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
+    url_re = re.compile(r'^svn://(?P<host>[^/]+)/(?P<path>.*?)\s*$')
+
 
     def __init__(self, options, repo_map):
         self.options = options
@@ -97,6 +99,24 @@ class SvnServer(ThreadingTCPServer):
 
         if self.log is not None:
             sys.stdout.close()
+
+
+    def find_repo(self, url):
+        url_m = self.url_re.match(url)
+
+        if url_m is None:
+            return None
+
+        host = url_m.group('host')
+        path = url_m.group('path')
+
+        for base, repo in self.repo_map.items():
+            if path.startswith(base + '/'):
+                return repo, path[len(base) + 1:], 'svn://%s/%s' % (host, base)
+            elif path == base:
+                return repo, '', 'svn://%s/%s' % (host, base)
+
+        return None, None, None
 
 
 class SvnRequestHandler(StreamRequestHandler):
