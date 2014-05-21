@@ -238,6 +238,7 @@ class SvnRequestHandler(StreamRequestHandler):
                         else:
                             self.send_msg(gen.success(gen.list(), gen.string('')))
                             self.mode = self.data
+                            self.data = None
 
                         if self.username is None:
                             return
