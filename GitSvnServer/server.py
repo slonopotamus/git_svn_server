@@ -163,20 +163,6 @@ class SvnRequestHandler(StreamRequestHandler):
 
         return t
 
-    def read(self, count):
-        data = ''
-
-        while len(data) < count:
-            s = self.rfile.read(count - len(data))
-
-            if len(s) == 0:
-                raise EOF
-
-            data += s
-
-        self.debug(data)
-        return data
-
     def read_str(self):
         ch = self.rfile.read(1)
 
@@ -202,12 +188,10 @@ class SvnRequestHandler(StreamRequestHandler):
         self.debug(data)
         return data
 
-    def send(self, msg):
-        self.debug(msg, send=True)
-        self.wfile.write('%s' % msg)
-
     def send_msg(self, msg):
-        self.send('%s\n' % msg)
+        msg = '%s\n' % msg
+        self.debug(msg, send=True)
+        self.wfile.write(msg)
 
     def send_server_id(self):
         self.send_msg(gen.success(gen.string(self.repos.uuid),
