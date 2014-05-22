@@ -1,4 +1,5 @@
 import ConfigParser
+import uuid
 
 from GitSvnServer.vcs.git.main import Git
 
@@ -47,7 +48,14 @@ def load_config(config_file):
             continue
 
         location = config.get(section, 'location')
-        repo_map[section] = Git(location, users)
+
+        try:
+            repo_uuid = config.get(section, 'uuid')
+        except ConfigParser.NoOptionError:
+            repo_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, location))
+
+        repo_map[section] = Git(location, repo_uuid, users)
+
         print "Inited repository for %s at /%s" % (location, section)
 
     return repo_map, users

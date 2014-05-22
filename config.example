@@ -11,3 +11,7 @@ users_config: users.example
 # Filesystem path to .git directory.
 # Relative paths are evaluated from git-svnserver working directory
 location: .git
+
+# Repository UUID.
+# If not specified, will be generated based on repository url
+uuid: 7e1a1535-36ba-5f47-b921-2a39798707d8

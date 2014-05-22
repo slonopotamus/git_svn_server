@@ -91,14 +91,14 @@ other_re = re.compile(r'^(?P<path>.*)$')
 
 
 class Git(object):
-    def __init__(self, location, users):
+    def __init__(self, location, uuid, users):
         self.users = users
         self.map = GitMap(self, location)
         self.lock = Lock()
         self.location = location
         self.cat_file = GitCatFile(self.location)
         self.created_date = format_time(time.gmtime(0))
-        self.uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, self.location))
+        self.uuid = uuid
 
     def __get_git_data(self, command_string):
         git_data = GitData(self.location, command_string)
@@ -302,7 +302,6 @@ class Git(object):
         o, t, tn, n, by, at, m = self.__tag_info(sha1)
 
         return changed, by, at
-
 
     def __get_changed_paths(self, sha1, path=''):
         cmd = 'diff-tree --name-status -r %s^ %s -- %s' % (sha1, sha1, path)
