@@ -6,9 +6,9 @@ import signal
 import sys
 import os
 import socket
+import traceback
 
 from GitSvnServer.config import load_config
-
 import auth
 import client
 import command
@@ -16,7 +16,6 @@ import editor
 import report
 import generate as gen
 from errors import *
-
 
 addr_family = socket.AF_INET
 all_interfaces = "0.0.0.0"
@@ -47,7 +46,6 @@ class SvnServer(ThreadingTCPServer):
     address_family = addr_family
     allow_reuse_address = True
     url_re = re.compile(r'^svn://(?P<host>[^/]+)/(?P<path>.*?)\s*$')
-
 
     def __init__(self, options):
         self.options = options
@@ -102,7 +100,6 @@ class SvnServer(ThreadingTCPServer):
 
         if self.log is not None:
             sys.stdout.close()
-
 
     def find_repo(self, url):
         url_m = self.url_re.match(url)
@@ -274,5 +271,12 @@ class SvnRequestHandler(StreamRequestHandler):
             msg = 'EOF'
         except socket.error as e:
             errno, msg = e
+        except Exception:
+            try:
+                self.send_msg(gen.error(235000, traceback.format_exc()))
+            except Exception as e1:
+                print e1
+            raise
+
         sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
                          (os.getpid(), msg))
