@@ -280,3 +280,9 @@ class SvnRequestHandler(StreamRequestHandler):
 
         sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
                          (os.getpid(), msg))
+
+    def finish(self):
+        try:
+            StreamRequestHandler.finish(self)
+        except socket.error:
+            pass
