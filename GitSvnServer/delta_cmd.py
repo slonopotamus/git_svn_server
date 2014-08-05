@@ -1,10 +1,10 @@
 import Queue
+from cStringIO import StringIO
 import threading
 
 from GitSvnServer import parse, svndiff
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
-
 
 try:
     from hashlib import md5
@@ -14,34 +14,35 @@ except ImportError:
 
 def send_thread(link, inq, outq):
     m = inq.get()
-    while m is not None:
-        link.send_msg(*m)
-        m = inq.get()
-    outq.put(True)
+    try:
+        while m is not None:
+            link.send_msg(*m)
+            m = inq.get()
+        outq.put(True)
+    except Exception as e:
+        outq.put(e)
 
 
 class DeltaCmd(Command):
     def report_set_path(self, path, rev, start_empty, lock_token, depth):
         self.prev_revs[path] = (rev, start_empty)
-        print "report: set path - %s %d %s" % (path, rev, start_empty)
 
     def report_link_path(self, path, url, rev, start_empty, lock_token, depth):
-        print "report: link path"
+        raise NotImplementedError()
 
     def report_delete_path(self, path):
-        print "report: delete path"
         self.deleted_paths.append(path)
 
+    # noinspection PyMethodMayBeStatic
     def auth(self):
         raise ChangeMode('auth', 'command')
 
     def get_reports(self):
         self.setup()
-        self.prev_revs = {'': (None, True)}
-        self.deleted_paths = []
         raise ChangeMode('report')
 
-    def get_parent_path(self, path):
+    @staticmethod
+    def get_parent_path(path):
         if '/' in path:
             parent_path, a = path.rsplit('/', 1)
         else:
@@ -50,9 +51,6 @@ class DeltaCmd(Command):
         return parent_path
 
     def get_prev(self, path):
-        if path in self.prev_revs:
-            return self.prev_revs[path]
-
         parent_path = self.get_parent_path(path)
         while parent_path not in self.prev_revs:
             parent_path = self.get_parent_path(parent_path)
@@ -70,49 +68,48 @@ class DeltaCmd(Command):
                 return True
         return False
 
-    def get_token(self, path):
+    @staticmethod
+    def get_token(path):
         return 'tok%s' % md5(path).hexdigest()
 
     def send(self, *args):
+        if not self.waitq.empty():
+            raise self.waitq.get()
         self.sendq.put(args)
 
-    def update_dir(self, path, rev, want, props, contents, parent_token=None):
-        repos = self.link.repos
-        url = '/'.join((self.link.url, path))
-        newurl = '/'.join((self.newurl, path))
+    def update_dir(self, path, rev, want, entry, parent_token=None):
+        """
+        :type path: str
+        :type entry: GitSvnServer.repository.GetFilesEntry
+        :type rev: int | None
+        """
+        repo = self.link.repo
+        url = '/'.join([self.link.url, path]).rstrip('/')
+        newurl = '/'.join([self.newurl, path]).rstrip('/')
 
         if '/' in want:
             want_head, want_tail = want.split('/', 1)
         else:
             want_head, want_tail = want, ''
 
-        new_dir = True
         token = self.get_token(path)
 
         prev_rev, start_empty = self.get_prev(path)
 
         if prev_rev is None:
             new_dir = True
-        elif not repos.paths_different(newurl, rev, url, prev_rev) \
-                and not self.get_prev_subpath_empty(path):
+        elif not self.get_prev_subpath_empty(path) and not repo.paths_different(newurl, rev, url, prev_rev):
             return
         else:
-            stat = repos.stat(url, prev_rev)
-            new_dir = stat[0] is None
+            new_dir = repo.find_file(url, prev_rev) is None
 
         if parent_token is None:
             self.send(gen.tuple('open-root', gen.list(rev), gen.string(token)))
-
-            props = repos.get_props(url, rev)
-            contents = contents[3]
-
         elif new_dir:
             self.send(gen.tuple('add-dir', gen.string(path),
                                 gen.string(parent_token),
-                                gen.string(token), '( )'))
-
+                                gen.string(token), gen.list()))
             prev_rev = None
-
         else:
             self.send(gen.tuple('open-dir',
                                 gen.string(path),
@@ -120,12 +117,12 @@ class DeltaCmd(Command):
                                 gen.string(token),
                                 gen.list(rev)))
 
-        prev_props = {}
         if prev_rev is not None and not start_empty:
-            for name, value in repos.get_props(url, prev_rev):
-                prev_props[name] = value
+            prev_props = dict(repo.get_props(url, prev_rev))
+        else:
+            prev_props = {}
 
-        for name, value in props:
+        for name, value in entry.stat.props():
             if name in prev_props:
                 if prev_props[name] == value:
                     del prev_props[name]
@@ -144,24 +141,21 @@ class DeltaCmd(Command):
                                 gen.list()))
 
         current_names = []
-        for name, kind, props, content in contents:
-            if len(want_head) > 0 and want_head != name:
+        for child in entry.children:
+            if len(want_head) > 0 and want_head != child:
                 continue
-            current_names.append(name)
-            entry_path = name
+            current_names.append(child.name)
+            entry_path = child.name
             if len(path) > 0:
-                entry_path = '/'.join((path, name))
-            if kind == 'dir':
-                self.update_dir(entry_path, rev, want_tail, props, content,
-                                token)
-            elif kind == 'file':
-                self.update_file(entry_path, rev, props, content, token)
-            else:
-                raise foo
+                entry_path = '/'.join((path, child.name))
+
+            if child.stat.kind == 'dir':
+                self.update_dir(entry_path, rev, want_tail, child, token)
+            elif child.stat.kind == 'file':
+                self.update_file(entry_path, rev, child, token)
 
         if prev_rev is not None and not start_empty:
-            for entry in repos.ls(url, prev_rev, include_changed=False):
-                name, kind, size, last_rev, last_author, last_date = entry
+            for name, stat in repo.ls(url, prev_rev):
                 if len(want_head) > 0 and want_head != name:
                     continue
                 if name not in current_names:
@@ -177,9 +171,17 @@ class DeltaCmd(Command):
 
         self.send(gen.tuple('close-dir', gen.string(token)))
 
-    def update_file(self, path, rev, props, contents, parent_token):
-        repos = self.link.repos
+    def update_file(self, path, rev, entry, parent_token):
+        """
+
+        :type path: str
+        :type rev: int
+        :type entry: GitSvnServer.repository.GetFilesEntry
+        """
+        repo = self.link.repo
+
         url = '/'.join((self.link.url, path))
+        contents = StringIO(self.link.repo.pygit[entry.stat.blob_id].data)
         newurl = '/'.join((self.newurl, path))
 
         token = self.get_token(path)
@@ -189,11 +191,16 @@ class DeltaCmd(Command):
         if prev_rev is None:
             prev_pl = []
             prev_contents = None
-        elif not repos.paths_different(newurl, rev, url, prev_rev):
-            contents.close()
+        elif not repo.paths_different(newurl, rev, url, prev_rev):
             return
         else:
-            prev_rev, prev_pl, prev_contents = repos.get_file(url, prev_rev)
+            prev_stat = repo.find_file(url, prev_rev)
+            if prev_stat and prev_stat.blob_id is not None:
+                prev_pl = prev_stat.props()
+                prev_contents = StringIO(self.link.repo.pygit[prev_stat.blob_id].data)
+            else:
+                prev_pl = {}
+                prev_contents = None
 
         new_file = prev_contents is None
 
@@ -211,20 +218,18 @@ class DeltaCmd(Command):
         self.send(gen.tuple('apply-textdelta', gen.string(token), '( )'))
 
         diff_version = 0
-        if 'svndiff1' in self.link.client_caps:
-            diff_version = 1
+
+        # TODO(marat): compression eats tons of CPU
+        # if 'svndiff1' in self.link.client_caps:
+        # diff_version = 1
 
         encoder = svndiff.Encoder(contents, prev_contents, version=diff_version)
 
         diff_chunk = encoder.get_chunk()
-        count = 0
         while diff_chunk is not None:
-            count += 1
             self.send(gen.tuple('textdelta-chunk',
                                 gen.string(token),
                                 gen.string(diff_chunk)))
-            if count > 2:
-                print "send chunk %d %d" % (count, len(diff_chunk))
             diff_chunk = encoder.get_chunk()
         csum = encoder.get_md5()
 
@@ -238,7 +243,7 @@ class DeltaCmd(Command):
         for name, value in prev_pl:
             prev_props[name] = value
 
-        for name, value in props:
+        for name, value in entry.stat.props():
             if name in prev_props:
                 if prev_props[name] == value:
                     del prev_props[name]
@@ -259,7 +264,6 @@ class DeltaCmd(Command):
         self.send(gen.tuple('close-file', gen.string(token),
                             gen.list(gen.string(csum))))
 
-    @need_repo_lock
     def do_complete(self):
         return self.complete()
 
@@ -271,6 +275,13 @@ class DeltaCmd(Command):
             DeltaCmd.do_complete,
         ]
 
+        self.newurl = None
+        self.prev_revs = {'': (None, True)}
+        self.deleted_paths = []
+
+        self.sendq = Queue.Queue()
+        self.waitq = Queue.Queue()
+
     def setup(self):
         raise NotImplementedError()
 
@@ -278,35 +289,22 @@ class DeltaCmd(Command):
         raise NotImplementedError()
 
     def send_response(self, path, url, rev):
-        repos = self.link.repos
+        repo = self.link.repo
 
-        self.sendq = Queue.Queue()
-        self.waitq = Queue.Queue()
-
-        thread = threading.Thread(target=send_thread,
-                                  args=(self.link, self.sendq, self.waitq))
+        thread = threading.Thread(target=send_thread, args=(self.link, self.sendq, self.waitq))
         thread.start()
+        try:
+            with repo.read_lock:
+                if rev is None:
+                    rev = self.link.repo.get_latest_rev()
+                self.send(gen.tuple('target-rev', rev))
+                contents = repo.get_files(url, rev)
+                self.update_dir('', rev, path, contents)
+        finally:
+            self.sendq.put(None)
 
-        import time
-
-        t1 = time.time()
-        print "get contents"
-        contents = repos.get_files(url, rev)
-        print len(contents)
-        t2 = time.time()
-        print t2 - t1
-        print "start sending"
-        self.update_dir('', rev, path, [], contents)
-        print "all sends now queued"
-        t3 = time.time()
-        print t3 - t2
-        print t3 - t1
-
-        self.sendq.put(None)
-        print "wait for sending thread"
         self.waitq.get()
 
-        print "send close-edit message"
         self.link.send_msg(gen.tuple('close-edit'))
         msg = parse.msg(self.link.read_msg())
         if msg[0] != 'success':
@@ -316,4 +314,3 @@ class DeltaCmd(Command):
             self.link.send_msg(gen.error(errno, errmsg))
         else:
             self.link.send_msg(gen.success())
-

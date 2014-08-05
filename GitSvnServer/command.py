@@ -1,4 +1,4 @@
-import generate as gen
+from GitSvnServer.errors import ClientError
 import parse
 
 # noinspection PyUnresolvedReferences
@@ -7,6 +7,10 @@ from cmd_base import commands
 
 
 def process(link):
+    """
+
+    :type link: GitSvnServer.server.SvnRequestHandler
+    """
     msg = parse.msg(link.read_msg())
 
     command_name = msg[0]
@@ -17,8 +21,7 @@ def process(link):
     print "%s: %s(%s)" % (link.client_address[0], command_name, args)
 
     if command is None:
-        link.send_msg(gen.error(210001, "Unknown command '%s'" % command_name))
-        return None
+        raise ClientError("Unknown command '%s'" % command_name)
 
     # noinspection PyCallingNonCallable
     return command(link, args)

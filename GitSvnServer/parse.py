@@ -1,16 +1,20 @@
-#!/usr/bin/python
+# !/usr/bin/python
 
 import re
-import sys
+
+from GitSvnServer.errors import ClientError
+
 
 class InvalidTokenString(Exception):
     pass
+
 
 token_string_re = re.compile(r'^[\n ]*\([\n ]+(?P<tokens>.*)\)[\n ]*$',
                              re.MULTILINE | re.DOTALL)
 string_re = re.compile(r'^(?P<len>\d+):(?P<data>.*)$', re.MULTILINE | re.DOTALL)
 token_re = re.compile(r'^(?P<token>.*?)[\n ]+(?P<rest>.*)$',
                       re.MULTILINE | re.DOTALL)
+
 
 def tokenise(input):
     token_m = token_string_re.match(input)
@@ -42,6 +46,7 @@ def tokenise(input):
 
     return tokens
 
+
 def msg(input):
     tokens = tokenise(input)
 
@@ -68,28 +73,26 @@ def msg(input):
 
             j += 1
 
-        parsed.append(msg(' '.join(tokens[i:j+1])))
+        parsed.append(msg(' '.join(tokens[i:j + 1])))
         i = j + 1
 
     return parsed
+
 
 def string(str):
     string_m = string_re.match(str)
 
     if string_m is None:
-        # TODO: raise an error here?
-        sys.stderr.write('not a string')
-        return None
+        raise ClientError('not a string')
 
     data_len = int(string_m.group('len'))
     data = string_m.group('data')
 
     if len(data) != data_len:
-        # TODO: raise an error here ...
-        sys.stderr.write('len error: %d != %d' % (len(data), data_len))
-        return None
+        raise ClientError('len error: %d != %d' % (len(data), data_len))
 
     return data
+
 
 def bool(str):
     return str.lower() == 'true'

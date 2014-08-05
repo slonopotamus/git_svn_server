@@ -11,56 +11,39 @@ from GitSvnServer.cmd_base import *
 class GetFile(SimpleCommand):
     _cmd = 'get-file'
 
-    @need_repo_lock
-    def do_cmd(self):
-        repos = self.link.repos
+    def do_cmd(self, repo):
+        """
+        :type repo: GitSvnServer.repository.Repository
+        """
         args = self.args
-        url = self.link.url
+        path = self.link.url
         rev = None
 
-        path = parse.string(args[0])
-        if len(path) > 0:
-            url = '/'.join((url, path))
+        path = '/'.join(filter(None, [path, parse.string(args.pop(0))]))
 
-        if len(args[1]) > 0:
-            rev = int(args[1][0])
+        arg = args.pop(0)
+        if len(arg) > 0:
+            rev = int(arg[0])
 
-        want_props = parse.bool(args[2])
-        want_contents = parse.bool(args[3])
+        want_props = parse.bool(args.pop(0))
+        want_contents = parse.bool(args.pop(0))
 
-        print "props: %s, contents: %s" % (want_props, want_contents)
+        with repo.read_lock:
+            f = repo.find_file(path, rev)
+            p = []
 
-        rev, props, contents = repos.get_file(url, rev)
+            if want_props:
+                for name, value in f.props():
+                    p.append(gen.list(gen.string(name), gen.string(value)))
 
-        p = []
-        if want_props:
-            for name, value in props:
-                p.append(gen.list(gen.string(name), gen.string(value)))
-
+        blob = repo.pygit[f.blob_id]
         m = md5()
-        data = contents.read(8192)
-        total_len = len(data)
-        while len(data) > 0:
-            m.update(data)
-            data = contents.read(8192)
-            total_len += len(data)
+        m.update(blob.data)
         csum = gen.string(m.hexdigest())
-        contents.close()
 
-        response = (gen.list(csum), rev, gen.list(*p))
-
-        self.link.send_msg(gen.success(*response))
+        self.link.send_msg(gen.success(*(gen.list(csum), rev, gen.list(*p))))
 
         if want_contents:
-            if total_len == len(data):
-                self.link.send_msg(gen.string(data))
-            else:
-                rev, props, contents = repos.get_file(url, rev)
-                data = contents.read(8192)
-                while len(data) > 0:
-                    self.link.send_msg(gen.string(data))
-                    data = contents.read(8192)
+            self.link.send_msg(gen.string(blob.data))
             self.link.send_msg(gen.string(''))
             self.link.send_msg(gen.success())
-
-        contents.close()

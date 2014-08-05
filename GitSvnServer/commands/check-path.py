@@ -6,20 +6,27 @@ from GitSvnServer.cmd_base import *
 class CheckPath(SimpleCommand):
     _cmd = 'check-path'
 
-    @need_repo_lock
-    def do_cmd(self):
-        repos = self.link.repos
+    def do_cmd(self, repo):
+        """
+        :type repo: GitSvnServer.repository.Repository
+        """
         args = self.args
-        url = self.link.url
+        path = self.link.url
         rev = None
 
-        path = parse.string(args[0])
-        if len(path) > 0:
-            url = '/'.join((url, path))
+        path = '/'.join(filter(None, [path, parse.string(args.pop(0))]))
 
-        if len(args) > 1 and len(args[1]) > 0:
-            rev = int(args[1][0])
+        if len(self.args) > 0:
+            arg = self.args.pop(0)
+            if len(arg) > 0:
+                rev = int(arg[0])
 
-        type = repos.check_path(url, rev)
+        with repo.read_lock:
+            f = repo.find_file(path, rev)
 
-        self.link.send_msg(gen.success(type))
+        if f is None:
+            kind = 'none'
+        else:
+            kind = f.kind
+
+        self.link.send_msg(gen.success(kind))

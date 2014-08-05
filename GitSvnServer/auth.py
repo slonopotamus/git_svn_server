@@ -12,7 +12,6 @@ class AuthFailure(Exception):
 class AuthMethod:
     def __init__(self, link, auth_db):
         """
-
         :type link: SvnRequestHandler
         """
         self.link = link
@@ -22,7 +21,7 @@ class AuthMethod:
         return self.link.read_str()
 
     def perform_auth(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def do_auth(self):
         while True:
@@ -36,7 +35,6 @@ class AuthMethod:
 class CramMd5Auth(AuthMethod):
     def perform_auth(self):
         """
-
         :rtype : User
         """
         msg_id = make_msgid()
@@ -63,8 +61,6 @@ auths = {
 
 def perform_auth(link, auth_db):
     """
-
-
     :type link: SvnRequestHandler
     :rtype : User
     """

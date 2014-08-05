@@ -1,143 +1,207 @@
-import cStringIO as StringIO
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import new as md5
+
+from cStringIO import StringIO
+
+import pygit2
 
 from GitSvnServer import generate as gen
 from GitSvnServer.cmd_base import *
-from GitSvnServer import parse, svndiff, hooks
-from GitSvnServer.errors import HookFailure
+from GitSvnServer import parse, svndiff
 
 
 class Dir(object):
-    def __init__(self, commit, path, token, dirs, parent_token=None, rev=None):
-        self.commit = commit
-        self.path = path
-        self.token = token
-        self.parent = None
-        self.rev = rev
+    def __init__(self, path, token, parent_token, rev, dirs):
+        """
+        :type dirs: dict[str, Dir]
+        :type path: str
+        :type token: str
+        :type parent_token: str | None
+        :type rev: int | None
+        """
 
-        self.props = {}
         self.files = {}
+        """:type : dict[str, File]"""
 
-        if parent_token is not None:
-            self.parent = dirs[parent_token]
-            self.parent.add(self)
+        self.deleted = {}
+        """:type : dict[str, int | None]"""
+
+        self.path = path
+
+        if parent_token is None:
+            self.full_path = path
+        else:
+            parent = dirs[parent_token]
+            parent.add(self)
+            self.full_path = '/'.join([parent.full_path, path])
+
+            if rev is None:
+                rev = parent.rev
+
+        assert rev is not None
+        self.rev = rev
 
         dirs[token] = self
 
-    def set_prop(self, name, value):
-        self.props[name] = value
-        self.commit.set_dir_prop(self.path, name, value)
-
     def add(self, f):
-        name = f.path
-        if name.startswith('%s/' % self.path):
-            name = name[len(self.path) + 1:]
-        self.files[name] = f
+        self.files[f.path] = f
 
-    def close(self):
-        pass
+    def set_prop(self, name, value):
+        raise NotImplementedError("Unsupported dir property: %s" % name)
 
     def __str__(self):
-        f = ""
-        for path, obj in self.files.items():
-            f += "\n    %s: %s" % (path, obj)
-        return "Dir(%s %s%s)" % (self.token, self.path, f)
+        return "%s@%s" % (self.full_path, self.rev)
 
 
 class File(object):
-    def __init__(self, path, token, dir_token, commit, dirs, files, rev=None, source=None):
-        self.path = path
-        self.token = token
-        self.dir = dirs[dir_token]
-        self.dir.add(self)
-        self.commit = commit
-        self.rev = rev
-        if source is None:
-            self.source = StringIO.StringIO()
-        else:
-            self.source = source
-        self.target = None
-        self.props = {}
-        self.diff = None
+    def __init__(self, path, token, dir_token, commit_info, rev, dirs, files):
+        """
+        :type dirs: dict
+        :type path: str
+        :type token: str
+        :type dir_token: str
+        :type commit_info: GitSvnServer.repository.CommitInfo
+        :type rev: int | None
+        """
 
+        parent = dirs[dir_token]
+
+        self.path = path
+        self.full_path = '/'.join([parent.full_path, path])
+
+        if rev is None:
+            rev = parent.rev
+        assert rev is not None
+        self.rev = rev
+
+        self.commit_info = commit_info
+        self.mode = None
+
+        self.decoder = None
+        """:type : svndiff.Decoder | None"""
+
+        self.source = StringIO()
+        """:type : StringIO"""
+
+        self.target = StringIO()
+        """:type : StringIO"""
+
+        self.blob_id = None
+        """:type : pygit2.Oid | None"""
+
+        parent.add(self)
         files[token] = self
 
     def set_prop(self, name, value):
-        self.props[name] = value
-        self.commit.set_file_prop(self.path, name, value)
+        if name == 'svn:executable':
+            if value == '':
+                self.mode = pygit2.GIT_FILEMODE_BLOB
+            else:
+                self.mode = pygit2.GIT_FILEMODE_BLOB_EXECUTABLE
+        else:
+            raise NotImplementedError("Unsupported file property: %s" % name)
 
     def delta_start(self, base_checksum):
-        rev = self.rev
-        if rev is None:
-            rev = self.dir.rev
-        self.target = self.commit.modify_file(self.path, rev)
-        self.diff = svndiff.Decoder(self.source, self.target)
+        with self.commit_info.repo.read_lock:
+            base = self.commit_info.repo.find_file(self.full_path, self.rev)
+
+            if base != self.commit_info.repo.find_file(self.full_path, self.commit_info.parent_rev):
+                raise PathChanged("File '%s' is out of date" % self.full_path)
+
+        if base is None or base.blob_id is None:
+            csum = None
+        else:
+            blob = self.commit_info.repo.pygit[base.blob_id]
+            csum = md5(blob.data).hexdigest().hexdigest()
+
+            self.source = StringIO(blob.data)
+
+        if csum != base_checksum:
+            raise ClientError("File '%s': checksum mismatch", self.full_path)
+
+        self.decoder = svndiff.Decoder(self.source, self.target)
 
     def chunk(self, chunk):
-        if self.diff is not None:
-            self.diff.feed(chunk)
+        self.decoder.feed(chunk)
 
     def delta_complete(self):
-        if self.diff is not None:
-            self.diff.complete()
+        self.decoder.complete()
+        self.decoder = None
+
+        pygit = self.commit_info.repo.pygit
+        self.blob_id = pygit.create_blob(self.target.getvalue())
+
         self.source.close()
-        if self.target is not None:
-            self.target.close()
+        self.target.close()
 
     def close(self, checksum):
-        print "check checksum here ..."
+        """
+        :type checksum: str | None
+        """
+        if self.blob_id is None:
+            assert checksum is None
+            return
+
+        blob = self.commit_info.repo.pygit[self.blob_id]
+        csum = md5(blob.data).hexdigest()
+        if csum != checksum:
+            raise ClientError("File '%s': checksum mismatch", self.full_path)
 
     def __str__(self):
-        return "File(%s %s)" % (self.token, self.path)
+        return "%s@%s" % (self.full_path, self.rev)
 
 
 class Commit(Command):
     _cmd = 'commit'
 
-    def target_rev(self, rev):
-        print "edit: target_rev"
+    def __init__(self, link, args):
+        Command.__init__(self, link, args)
+        self.steps = [Commit.auth, Commit.get_edits, Commit.do_commit, Commit.auth, Commit.send_result]
+
+        self.dirs = {}
+        """:type : dict[str, Dir]"""
+
+        self.files = {}
+        """:type : dict[str, File]"""
+
+        self.root = None
+        """:type : Dir | None"""
+
+        self.commit_info = None
+        """:type : GitSvnServer.repository.CommitInfo"""
+
+        self.result = None
+        """:type : str | None"""
 
     def open_root(self, rev, root_token):
-        print "edit: open_root"
-        self.root = Dir(self.commit, '', root_token, self.dirs)
-
-    def delete_entry(self, path, rev, dir_token):
-        print "edit: delete_entry"
-        self.commit.remove_path(path)
+        if rev is None:
+            rev = self.commit_info.parent_rev
+        self.root = Dir(self.link.url, root_token, None, rev, self.dirs)
 
     def add_dir(self, path, parent_token, child_token, copy_path, copy_rev):
-        print "edit: add_dir -", path, parent_token, child_token, copy_path, copy_rev
-        Dir(self.commit, path, child_token, self.dirs, parent_token)
-        self.commit.add_dir(path, original=(copy_path, copy_rev))
+        # TODO(marat): copy_path/copy_rev
+        Dir(path, child_token, parent_token, None, self.dirs)
 
     def open_dir(self, path, parent_token, child_token, rev):
-        Dir(self.commit, path, child_token, self.dirs, parent_token, rev)
-        self.commit.open_dir(path)
-
-    def change_dir_prop(self, dir_token, name, value):
-        self.dirs[dir_token].set_prop(name, value)
+        Dir(path, child_token, parent_token, rev, self.dirs)
 
     def close_dir(self, dir_token):
-        self.dirs[dir_token].close()
+        pass
 
-    def absent_dir(self, path, parent_token):
-        print "edit: absent_dir"
+    def delete_entry(self, path, rev, dir_token):
+        self.dirs[dir_token].deleted[path] = rev
 
     def add_file(self, path, dir_token, file_token, copy_path, copy_rev):
-        File(path, file_token, dir_token, self.commit, self.dirs, self.files)
+        # TODO(marat): copy_path/copy_rev
+        File(path, file_token, dir_token, self.commit_info, None, self.dirs, self.files)
 
     def open_file(self, path, dir_token, file_token, rev):
-        contents = None
-        if rev is not None:
-            url = '/'.join((self.link.url, path))
-            r, pl, contents = self.link.repos.get_file(url, rev)
-        File(path, file_token, dir_token, self.commit, self.dirs, self.files, rev, contents)
+        File(path, file_token, dir_token, self.commit_info, rev, self.dirs, self.files)
 
     def apply_textdelta(self, file_token, base_checksum):
-        try:
-            self.files[file_token].delta_start(base_checksum)
-        except PathChanged as e:
-            self.aborted = True
-            self.link.send_msg(gen.error(1, "File '%s' is out of date" % e))
+        self.files[file_token].delta_start(base_checksum)
 
     def textdelta_chunk(self, file_token, chunk):
         self.files[file_token].chunk(chunk)
@@ -145,69 +209,34 @@ class Commit(Command):
     def textdelta_end(self, file_token):
         self.files[file_token].delta_complete()
 
+    def close_file(self, file_token, checksum):
+        self.files[file_token].close(checksum)
+
     def change_file_prop(self, file_token, name, value):
-        print "edit: change_file_prop"
         self.files[file_token].set_prop(name, value)
 
-    def close_file(self, file_token, text_checksum):
-        self.files[file_token].close(text_checksum)
+    def change_dir_prop(self, dir_token, name, value):
+        self.dirs[dir_token].set_prop(name, value)
 
-    def absent_file(self, path, parent_token):
-        print "edit: absent_file"
-
+    # noinspection PyMethodMayBeStatic
     def auth(self):
         raise ChangeMode('auth', 'command')
 
     def get_edits(self):
-        self.root = None
-        self.aborted = False
-        self.commit = self.link.repos.start_commit(self.link.url, self.link.user)
+        with self.link.repo.read_lock:
+            self.commit_info = self.link.repo.start_commit()
 
         self.link.send_msg(gen.success())
         raise ChangeMode('editor')
 
     def do_commit(self):
-        repos = self.link.repos
+        msg = parse.string(self.args.pop(0))
 
-        msg = parse.string(self.args[0])
-
-        self.commit_info = None
-
-        if self.aborted:
-            self.link.send_msg(gen.error(1, "aborted"))
-            return
-
-        try:
-            rev, date, author, error = repos.complete_commit(self.commit, msg)
-        except HookFailure as hf:
-            err, msg = hooks.pre_commit(hf.code, hf.text)
-            self.link.send_msg(gen.error(err, msg))
-            return
-
-        print rev, date, author, error
-
-        if rev is None:
-            self.link.send_msg(gen.error(1, "vcs error: %s" % error))
-            return
-
-        self.commit_info = gen.list(rev, gen.list(gen.string(date)),
-                                    gen.list(gen.string(author)), gen.list())
+        with self.link.repo.write_lock:
+            rev = self.link.repo.complete_commit(self.commit_info, msg, self.root, self.link.user)
 
         self.link.send_msg(gen.success())
-        raise ChangeMode('auth', 'command')
+        self.result = gen.list(rev.number, rev.gen_date(), rev.gen_author(), gen.list())
 
-    def send_commit_info(self):
-        if self.commit_info is None:
-            return
-
-        self.link.send_msg(self.commit_info)
-
-    def __init__(self, link, args):
-        Command.__init__(self, link, args)
-        self.steps = [Commit.auth, Commit.get_edits, Commit.do_commit, Commit.send_commit_info]
-        self.dirs = {}
-        self.files = {}
-        self.aborted = False
-        self.root = None
-        self.commit = None
-        self.commit_info = None
+    def send_result(self):
+        self.link.send_msg(self.result)

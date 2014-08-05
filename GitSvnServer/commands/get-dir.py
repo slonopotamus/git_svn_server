@@ -6,52 +6,44 @@ from GitSvnServer.cmd_base import *
 class GetDir(SimpleCommand):
     _cmd = 'get-dir'
 
-    @need_repo_lock
-    def do_cmd(self):
-        repos = self.link.repos
-        args = self.args
-        url = self.link.url
-        rev = None
+    def do_cmd(self, repo):
+        """
+        :type repo: GitSvnServer.repository.Repository
+        """
+        path = self.link.url
 
-        path = parse.string(args.pop(0))
-        if len(path) > 0:
-            url = '/'.join((url, path))
+        path = '/'.join(filter(None, [path, parse.string(self.args.pop(0))]))
 
-        arg = args.pop(0)
+        arg = self.args.pop(0)
         if len(arg) > 0:
             rev = int(arg[0])
+        else:
+            rev = None
 
-        want_props = parse.bool(args.pop(0))
-
-        want_contents = parse.bool(args.pop(0))
+        want_props = parse.bool(self.args.pop(0))
+        want_contents = parse.bool(self.args.pop(0))
 
         fields = []
-        if len(args) > 0:
-            fields = args.pop(0)
+        if self.args:
+            fields = self.args.pop(0)
 
-        ls_data = []
-        if want_contents:
-            for path, kind, size, changed, by, at in repos.ls(url, rev):
-                path_url = "%s/%s" % (url, path)
-                has_props = len(repos.get_props(path_url, rev, False)) == 0
-                if by is None:
-                    by = gen.list()
-                else:
-                    by = gen.list(gen.string(by))
+        props = {}
+        ls = []
+        with repo.read_lock:
+            if want_contents:
+                ls = list(repo.ls(path, rev))
+            if want_props:
+                props = repo.get_props(path, rev)
 
-                ls_data.append(gen.list(gen.string(path),
-                                        kind,
-                                        size,
-                                        gen.bool(has_props),
-                                        changed,
-                                        gen.list(gen.string(at)),
-                                        by))
+        p = [gen.list(gen.string(name), gen.string(value)) for name, value in props]
 
-        p = []
-        if want_props:
-            for name, value in repos.get_props(url, rev):
-                p.append(gen.list(gen.string(name), gen.string(value)))
+        ls_data = [gen.list(gen.string(name),
+                            stat.kind,
+                            stat.size,
+                            gen.bool(len(list(stat.props(False))) > 0),
+                            stat.last_change.number,
+                            stat.last_change.gen_date(),
+                            stat.last_change.gen_author()) for name, stat in ls]
 
         response = "%d %s %s" % (rev, gen.list(*p), gen.list(*ls_data))
-
         self.link.send_msg(gen.success(response))

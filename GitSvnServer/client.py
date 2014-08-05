@@ -13,8 +13,8 @@ server_capabilities = [
 
 
 def connect(link):
-    # Send the announce message - we only support protocol version 2.
     """
+    Send the announce message - we only support protocol version 2.
 
     :type link: SvnRequestHandler
     """
@@ -25,12 +25,8 @@ def connect(link):
     client_caps = msg[1]
     url = parse.string(msg[2])
 
-    print "ver: %d" % proto_ver
-    print "caps: %s" % client_caps
-    print "url: %s" % url
-
     if proto_ver != 2:
-        raise BadProtoVersion()
+        raise ClientError("Unsupported protocol version: %s" % proto_ver)
 
     repo, path, base_url = link.server.find_repo(url)
 

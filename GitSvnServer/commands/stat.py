@@ -6,38 +6,35 @@ from GitSvnServer.cmd_base import *
 class Stat(SimpleCommand):
     _cmd = 'stat'
 
-    @need_repo_lock
-    def do_cmd(self):
-        repos = self.link.repos
+    def do_cmd(self, repo):
+        """
+        :type repo: GitSvnServer.repository.Repository
+        """
         args = self.args
-        url = self.link.url
+        path = self.link.url
         rev = None
 
-        path = parse.string(args[0])
-        if len(path) > 0:
-            url = '/'.join((url, path))
+        path = '/'.join(filter(None, [path, parse.string(args.pop(0))]))
 
-        if len(args) > 1:
-            rev = int(args[1][0])
+        if len(args) > 0:
+            rev = int(args.pop(0)[0])
+        else:
+            rev = None
 
-        path, kind, size, changed, by, at = repos.stat(url, rev)
+        with repo.read_lock:
+            stat = repo.find_file(path, rev)
 
-        if path is None:
+        if stat is None:
             self.link.send_msg(gen.success(gen.list()))
             return
 
-        props = repos.get_props(url, rev, False)
+        props = list(stat.props(False))
 
-        if by is None:
-            by = gen.list()
-        else:
-            by = gen.list(gen.string(by))
-
-        ls_data = gen.list(kind,
-                           size,
+        ls_data = gen.list(stat.kind,
+                           stat.size,
                            gen.bool(len(props) > 0),
-                           changed,
-                           gen.list(gen.string(at)),
-                           by)
+                           stat.last_change.number,
+                           stat.last_change.gen_date(),
+                           stat.last_change.gen_author())
 
         self.link.send_msg(gen.success(gen.list(ls_data)))

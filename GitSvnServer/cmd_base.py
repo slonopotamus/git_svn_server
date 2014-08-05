@@ -4,9 +4,10 @@ commands = {}
 
 
 class MetaCommand(type):
-    def __new__(cls, name, bases, klassDict):
+    # noinspection PyProtectedMember
+    def __new__(mcs, name, bases, class_dict):
         stepsd = {}
-        for name, x in klassDict.items():
+        for name, x in class_dict.items():
             try:
                 stepsd[x._step_idx] = x
             except AttributeError:
@@ -14,19 +15,11 @@ class MetaCommand(type):
         steps = []
         for step in sorted(stepsd.keys()):
             steps.append(stepsd[step])
-        klassDict['steps'] = steps
-        theKlass = type.__new__(cls, name, bases, klassDict)
-        if theKlass._cmd is not None:
-            commands[theKlass._cmd] = theKlass
-        return theKlass
-
-
-def need_repo_lock(f):
-    def call(self):
-        with self.link.repos.lock:
-            f(self)
-
-    return call
+        class_dict['steps'] = steps
+        klass = type.__new__(mcs, name, bases, class_dict)
+        if klass._cmd is not None:
+            commands[klass._cmd] = klass
+        return klass
 
 
 class Command:
@@ -43,8 +36,6 @@ class Command:
         self.next_step = 0
         self.link = link
         self.args = args
-        self.report_errors = []
-        self.edit_errors = []
 
     def process(self):
         if self.next_step >= len(self.steps):
@@ -70,14 +61,12 @@ class Command:
     def report_delete_path(self, path):
         raise NotImplementedError()
 
+    # noinspection PyMethodMayBeStatic
     def report_finish(self):
         raise ChangeMode('auth', 'command')
 
     def report_abort(self):
         raise NotImplementedError()
-
-    def log_report_error(self, errno, errstr):
-        self.report_errors.append((errno, errstr))
 
     #
     # editor command set functions
@@ -125,30 +114,32 @@ class Command:
     def change_file_prop(self, file_token, name, value):
         raise NotImplementedError()
 
-    def close_file(self, file_token, text_checksum):
+    def close_file(self, file_token, checksum):
         raise NotImplementedError()
 
     def absent_file(self, path, parent_token):
         raise NotImplementedError()
 
+    # noinspection PyMethodMayBeStatic
     def edit_finish(self):
         raise ChangeMode('command')
 
     def edit_abort(self):
         raise NotImplementedError()
 
-    def log_edit_error(self, errno, errstr):
-        self.edit_errors.append((errno, errstr))
-
 
 class SimpleCommand(Command):
+    # noinspection PyMethodMayBeStatic
     def auth(self):
         raise ChangeMode('auth', 'command')
 
     def main(self):
-        self.do_cmd()
+        self.do_cmd(self.link.repo)
 
-    def do_cmd(self):
+    def do_cmd(self, repo):
+        """
+        :type repo: Repository
+        """
         raise NotImplemented()
 
     def __init__(self, link, args):

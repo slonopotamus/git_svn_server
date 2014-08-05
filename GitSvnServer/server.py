@@ -1,4 +1,4 @@
-#!/usr/bin/python
+# !/usr/bin/python
 
 import re
 from SocketServer import *
@@ -23,7 +23,7 @@ if socket.has_ipv6:
     addr_family = socket.AF_INET6
     all_interfaces = "::"
 
-ipv4_re = re.compile(r'\d{1,3}(\.\d{1,3}){3,3}')
+ipv4_re = re.compile(r'\d{1,3}(\.\d{1,3}){3}')
 
 
 def is_ipv4_addr(ip):
@@ -105,7 +105,7 @@ class SvnServer(ThreadingTCPServer):
         url_m = self.url_re.match(url)
 
         if url_m is None:
-            return None
+            return None, None, None
 
         host = url_m.group('host')
         path = url_m.group('path')
@@ -122,18 +122,25 @@ class SvnServer(ThreadingTCPServer):
 class SvnRequestHandler(StreamRequestHandler):
     def __init__(self, request, client_address, server):
         """
-
         :type server: SvnServer
         """
         self.mode = 'connect'
+
         self.client_caps = None
-        self.repos = None
+        """:type : [str] """
+
+        self.repo = None
+        """:type : GitSvnServer.repository.Repository"""
+
         self.server = server
         self.auth = None
         self.data = None
         self.base_url = None
         self.url = None
+
         self.user = None
+        """:type : GitSvnServer.config.User"""
+
         self.command = None
         self.options = server.options
         StreamRequestHandler.__init__(self, request, client_address, server)
@@ -145,17 +152,10 @@ class SvnRequestHandler(StreamRequestHandler):
         if send:
             d = '>'
         max_dbg_mlen = self.options.max_message_debug_len
-        if max_dbg_mlen > 0 and len(msg) > max_dbg_mlen:
+        if 0 < max_dbg_mlen < len(msg):
             sys.stderr.write('%d%s%s...\n' % (os.getpid(), d, msg[:max_dbg_mlen]))
         else:
             sys.stderr.write('%d%s%s\n' % (os.getpid(), d, msg))
-
-    def set_mode(self, mode):
-        if mode not in ['connect', 'auth', 'announce',
-                        'command', 'editor', 'report']:
-            raise ModeError("Unknown mode '%s'" % mode)
-
-        self.mode = mode
 
     def read_msg(self):
         t = self.rfile.read(1)
@@ -215,19 +215,19 @@ class SvnRequestHandler(StreamRequestHandler):
         self.wfile.write(msg)
 
     def send_server_id(self):
-        self.send_msg(gen.success(gen.string(self.repos.uuid),
+        self.send_msg(gen.success(gen.string(self.repo.uuid),
                                   gen.string(self.base_url)))
 
     def handle(self):
-        sys.stderr.write('%d: -- NEW CONNECTION --\n' % os.getpid())
+        sys.stderr.write('%s: NEW CONNECTION\n' % self.client_address[0])
         msg = None
         try:
             while True:
                 try:
                     if self.mode == 'connect':
-                        self.url, self.client_caps, self.repos, self.base_url = client.connect(self)
+                        self.url, self.client_caps, self.repo, self.base_url = client.connect(self)
 
-                        if self.client_caps is None or self.repos is None:
+                        if self.client_caps is None or self.repo is None:
                             return
 
                         self.mode = 'auth'
@@ -272,17 +272,24 @@ class SvnRequestHandler(StreamRequestHandler):
                     self.send_msg(gen.error(210001, str(e)))
         except EOF:
             msg = 'EOF'
+
         except socket.error as e:
             errno, msg = e
+
+        except ClientError as e:
+            try:
+                self.send_msg(gen.error(210001, str(e)))
+            except socket.error:
+                pass
+
         except Exception:
             try:
                 self.send_msg(gen.error(235000, traceback.format_exc()))
-            except Exception as e1:
-                print e1
+            except socket.error:
+                pass
             raise
 
-        sys.stderr.write('%d: -- CLOSE CONNECTION (%s) --\n' %
-                         (os.getpid(), msg))
+        sys.stderr.write('%s: CLOSE CONNECTION (%s)\n' % (self.client_address[0], msg))
 
     def finish(self):
         try:

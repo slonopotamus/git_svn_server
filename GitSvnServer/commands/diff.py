@@ -1,6 +1,3 @@
-
-from GitSvnServer import parse
-from GitSvnServer import generate as gen
 from GitSvnServer.delta_cmd import *
 
 
@@ -11,31 +8,29 @@ class Diff(DeltaCmd):
         self.newurl = parse.string(self.args[4])
 
     def complete(self):
-        repos = self.link.repos
-
         text_deltas = True
         depth = None
 
         print "XX: %s" % self.args
 
-        if len(self.args[0]) == 0:
-            rev = repos.get_latest_rev()
+        arg = self.args.pop(0)
+        if len(arg) > 0:
+            rev = int(arg[0])
         else:
-            rev = int(self.args[0][0])
-        path = parse.string(self.args[1])
+            rev = None
 
-        recurse = parse.bool(self.args[2])
+        path = parse.string(self.args.pop(0))
 
-        ignore_ancestry = parse.bool(self.args[3])
+        recurse = parse.bool(self.args.pop(0))
 
-        url = parse.string(self.args[4])
+        ignore_ancestry = parse.bool(self.args.pop(0))
 
-        if len(self.args) > 5:
-            ignore_ancestry = parse.bool(self.args[5])
+        url = parse.string(self.args.pop(0))
 
-        if len(self.args) > 6:
-            depth = self.args[6]
+        if len(self.args) > 0:
+            ignore_ancestry = parse.bool(self.args.pop(0))
 
-        self.link.send_msg(gen.tuple('target-rev', rev))
+        if len(self.args) > 0:
+            depth = self.args.pop(0)
 
         self.send_response(path, url, rev)
