@@ -267,6 +267,9 @@ class SvnRequestHandler(StreamRequestHandler):
                     self.mode = cm.args[0]
                     if len(cm.args) > 1:
                         self.data = cm.args[1]
+
+                except ClientError as e:
+                    self.send_msg(gen.error(210001, str(e)))
         except EOF:
             msg = 'EOF'
         except socket.error as e:
