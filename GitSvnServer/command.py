@@ -14,10 +14,11 @@ def process(link):
 
     command = commands.get(command_name, None)
 
+    print "%s: %s(%s)" % (link.client_address[0], command_name, args)
+
     if command is None:
         link.send_msg(gen.error(210001, "Unknown command '%s'" % command_name))
         return None
 
-    print "found %s" % command_name
     # noinspection PyCallingNonCallable
     return command(link, args)
